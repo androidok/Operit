@@ -1,4 +1,4 @@
-package com.ai.assistance.operit.ui.features.toolbox.screens
+package com.ai.assistance.operit.ui.common.composedsl
 
 import android.graphics.Color as AndroidColor
 import androidx.compose.foundation.BorderStroke

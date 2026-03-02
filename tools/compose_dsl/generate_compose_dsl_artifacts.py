@@ -1381,7 +1381,7 @@ def build_kotlin_registry_file(components: Sequence[ComponentSpec], output_path:
         )
         for c in components
     ]
-    content = """package com.ai.assistance.operit.ui.features.toolbox.screens
+    content = """package com.ai.assistance.operit.ui.common.composedsl
 
 /**
  * AUTO-GENERATED from Compose Material3/Foundation component bindings.
@@ -1440,9 +1440,8 @@ def main() -> None:
         / "assistance"
         / "operit"
         / "ui"
-        / "features"
-        / "toolbox"
-        / "screens"
+        / "common"
+        / "composedsl"
         / "ToolPkgComposeDslGeneratedRegistry.kt"
     )
     kt_renderers_output = (
@@ -1456,9 +1455,8 @@ def main() -> None:
         / "assistance"
         / "operit"
         / "ui"
-        / "features"
-        / "toolbox"
-        / "screens"
+        / "common"
+        / "composedsl"
         / "ToolPkgComposeDslGeneratedRenderers.kt"
     )
 

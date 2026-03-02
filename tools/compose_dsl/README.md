@@ -3,9 +3,9 @@
 Generates compose_dsl artifacts from Compose source jars in Gradle cache.
 
 - Kotlin renderer registry:
-  - `app/src/main/java/com/ai/assistance/operit/ui/features/toolbox/screens/ToolPkgComposeDslGeneratedRegistry.kt`
+  - `app/src/main/java/com/ai/assistance/operit/ui/common/composedsl/ToolPkgComposeDslGeneratedRegistry.kt`
 - Kotlin renderers:
-  - `app/src/main/java/com/ai/assistance/operit/ui/features/toolbox/screens/ToolPkgComposeDslGeneratedRenderers.kt`
+  - `app/src/main/java/com/ai/assistance/operit/ui/common/composedsl/ToolPkgComposeDslGeneratedRenderers.kt`
 - TypeScript generated bindings:
   - `examples/types/compose-dsl.material3.generated.d.ts`
 

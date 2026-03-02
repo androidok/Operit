@@ -8,6 +8,15 @@
 // Import types that will be used in global declarations
 import { ToolReturnType, NativeInterface as CoreNativeInterface } from './core';
 import {
+    JavaBridgeApi as JavaBridgeApiType,
+    JavaBridgeClass as JavaBridgeClassType,
+    JavaBridgeInstance as JavaBridgeInstanceType,
+    JavaBridgeHandle as JavaBridgeHandleType,
+    JavaBridgePackage as JavaBridgePackageType,
+    JavaBridgeJsInterfaceMarker as JavaBridgeJsInterfaceMarkerType,
+    JavaBridgeJsInterfaceImpl as JavaBridgeJsInterfaceImplType
+} from './java-bridge';
+import {
     CalculationResultData as _CalculationResultData,
     SleepResultData as _SleepResultData,
     SystemSettingData as _SystemSettingData,
@@ -62,6 +71,7 @@ export * from './results';
 
 // Export tool type definitions
 export * from './tool-types';
+export * from './java-bridge';
 
 // Export compose-dsl definitions for toolpkg ui_modules
 export * from './compose-dsl';
@@ -119,6 +129,13 @@ declare global {
     type ComposeDslContext = ComposeDslContextType;
     type ComposeDslScreen = ComposeDslScreenType;
     type ComposeNode = ComposeNodeType;
+    type JavaBridgeApi = JavaBridgeApiType;
+    type JavaBridgeClass = JavaBridgeClassType;
+    type JavaBridgeInstance = JavaBridgeInstanceType;
+    type JavaBridgeHandle = JavaBridgeHandleType;
+    type JavaBridgePackage = JavaBridgePackageType;
+    type JavaBridgeJsInterfaceMarker = JavaBridgeJsInterfaceMarkerType;
+    type JavaBridgeJsInterfaceImpl = JavaBridgeJsInterfaceImplType;
 
 
     // Make result types available globally
@@ -263,6 +280,10 @@ declare global {
 
     // CommonJS exports
     const exports: Record<string, any>;
+
+    // Java/Kotlin bridge (Rhino-like)
+    const Java: JavaBridgeApiType;
+    const Kotlin: JavaBridgeApiType;
 
     // NativeInterface
     const NativeInterface: typeof CoreNativeInterface;

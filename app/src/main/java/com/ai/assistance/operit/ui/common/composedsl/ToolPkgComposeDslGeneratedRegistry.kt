@@ -1,4 +1,4 @@
-package com.ai.assistance.operit.ui.features.toolbox.screens
+package com.ai.assistance.operit.ui.common.composedsl
 
 /**
  * AUTO-GENERATED from Compose Material3/Foundation component bindings.

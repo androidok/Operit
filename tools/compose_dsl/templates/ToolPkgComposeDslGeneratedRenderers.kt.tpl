@@ -1,4 +1,4 @@
-package com.ai.assistance.operit.ui.features.toolbox.screens
+package com.ai.assistance.operit.ui.common.composedsl
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
