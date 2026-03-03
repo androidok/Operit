@@ -54,6 +54,7 @@ fun GlobalDisplaySettingsScreen(
     val toolCollapseMode by displayPreferencesManager.toolCollapseMode.collectAsState(initial = ToolCollapseMode.ALL)
     val showFpsCounter by displayPreferencesManager.showFpsCounter.collectAsState(initial = false)
     val enableReplyNotification by displayPreferencesManager.enableReplyNotification.collectAsState(initial = true)
+    val enableEnterToSend by displayPreferencesManager.enableEnterToSend.collectAsState(initial = false)
     val enableExperimentalVirtualDisplay by displayPreferencesManager.enableExperimentalVirtualDisplay.collectAsState(initial = true)
     val globalUserName by displayPreferencesManager.globalUserName.collectAsState(initial = null)
     val globalUserAvatarUri by displayPreferencesManager.globalUserAvatarUri.collectAsState(initial = null)
@@ -301,6 +302,18 @@ fun GlobalDisplaySettingsScreen(
                 onCheckedChange = {
                     scope.launch {
                         displayPreferencesManager.saveDisplaySettings(enableReplyNotification = it)
+                    }
+                },
+                backgroundColor = componentBackgroundColor
+            )
+
+            DisplayToggleItem(
+                title = stringResource(R.string.enable_enter_to_send),
+                subtitle = stringResource(R.string.enable_enter_to_send_description),
+                checked = enableEnterToSend,
+                onCheckedChange = {
+                    scope.launch {
+                        displayPreferencesManager.saveDisplaySettings(enableEnterToSend = it)
                     }
                 },
                 backgroundColor = componentBackgroundColor

@@ -88,6 +88,12 @@ import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipPath
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.isShiftPressed
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
@@ -142,6 +148,7 @@ fun AgentChatInputSection(
     actualViewModel: ChatViewModel,
     userMessage: TextFieldValue,
     onUserMessageChange: (TextFieldValue) -> Unit,
+    enableEnterToSend: Boolean = false,
     onSendMessage: () -> Unit,
     onQueueMessage: () -> Unit,
     onCancelMessage: () -> Unit,
@@ -376,6 +383,34 @@ fun AgentChatInputSection(
 
     LaunchedEffect(showAttachmentPanel) {
         onAttachmentPanelStateChange?.invoke(showAttachmentPanel)
+    }
+    fun handleEnterSendAction() {
+        if (!canSendMessage) return
+        if (showQueueAction) {
+            onQueueMessage()
+            setShowAttachmentPanel(false)
+            return
+        }
+        if (isOverTokenLimit) {
+            showTokenLimitDialog.value = true
+            return
+        }
+        onSendMessage()
+        setShowAttachmentPanel(false)
+    }
+    val onEnterToSendKeyEvent: (androidx.compose.ui.input.key.KeyEvent) -> Boolean = { keyEvent ->
+        if (!enableEnterToSend) {
+            false
+        } else if (
+            keyEvent.type == KeyEventType.KeyDown &&
+            keyEvent.key == Key.Enter &&
+            !keyEvent.isShiftPressed
+        ) {
+            handleEnterSendAction()
+            true
+        } else {
+            false
+        }
     }
 
     val isDarkTheme = MaterialTheme.colorScheme.onSurface.luminance() > 0.5f
@@ -671,13 +706,21 @@ fun AgentChatInputSection(
                                 style = inputTextStyle,
                             )
                         },
-                        modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp),
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp).onPreviewKeyEvent(onEnterToSendKeyEvent),
                         textStyle = inputTextStyle,
                         maxLines = 6,
                         minLines = 1,
                         singleLine = false,
-                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Default),
-                        keyboardActions = KeyboardActions(),
+                        keyboardOptions =
+                            KeyboardOptions(
+                                imeAction = if (enableEnterToSend) ImeAction.Send else ImeAction.Default
+                            ),
+                        keyboardActions =
+                            if (enableEnterToSend) {
+                                KeyboardActions(onSend = { handleEnterSendAction() })
+                            } else {
+                                KeyboardActions()
+                            },
                         colors =
                             OutlinedTextFieldDefaults.colors(
                                 focusedBorderColor = Color.Transparent,
@@ -689,14 +732,12 @@ fun AgentChatInputSection(
                             ),
                         shape = RoundedCornerShape(14.dp),
                         trailingIcon = {
-                            if (userMessage.text.contains("\n")) {
-                                IconButton(onClick = { showFullscreenInput.value = true }) {
-                                    Icon(
-                                        imageVector = Icons.Default.Fullscreen,
-                                        contentDescription = "Fullscreen input",
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    )
-                                }
+                            IconButton(onClick = { showFullscreenInput.value = true }) {
+                                Icon(
+                                    imageVector = Icons.Default.Fullscreen,
+                                    contentDescription = stringResource(R.string.chat_fullscreen_input),
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
                             }
                         },
                         enabled = !isProcessing || allowTextInputWhileProcessing,
@@ -939,13 +980,21 @@ fun AgentChatInputSection(
                                     style = inputTextStyle,
                                 )
                             },
-                            modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp),
+                            modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp).onPreviewKeyEvent(onEnterToSendKeyEvent),
                             textStyle = inputTextStyle,
                             maxLines = 6,
                             minLines = 1,
                             singleLine = false,
-                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Default),
-                            keyboardActions = KeyboardActions(),
+                            keyboardOptions =
+                                KeyboardOptions(
+                                    imeAction = if (enableEnterToSend) ImeAction.Send else ImeAction.Default
+                                ),
+                            keyboardActions =
+                                if (enableEnterToSend) {
+                                    KeyboardActions(onSend = { handleEnterSendAction() })
+                                } else {
+                                    KeyboardActions()
+                                },
                             colors =
                                 OutlinedTextFieldDefaults.colors(
                                     focusedBorderColor = Color.Transparent,
@@ -957,14 +1006,12 @@ fun AgentChatInputSection(
                                 ),
                             shape = RoundedCornerShape(14.dp),
                             trailingIcon = {
-                                if (userMessage.text.contains("\n")) {
-                                    IconButton(onClick = { showFullscreenInput.value = true }) {
-                                        Icon(
-                                            imageVector = Icons.Default.Fullscreen,
-                                            contentDescription = "Fullscreen input",
-                                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        )
-                                    }
+                                IconButton(onClick = { showFullscreenInput.value = true }) {
+                                    Icon(
+                                        imageVector = Icons.Default.Fullscreen,
+                                        contentDescription = stringResource(R.string.chat_fullscreen_input),
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
                                 }
                             },
                             enabled = !isProcessing || allowTextInputWhileProcessing,

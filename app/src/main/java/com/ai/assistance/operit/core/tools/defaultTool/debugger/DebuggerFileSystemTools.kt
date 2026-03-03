@@ -56,6 +56,12 @@ open class DebuggerFileSystemTools(context: Context) : AccessibilityFileSystemTo
     companion object {
         private const val TAG = "DebuggerFileSystemTools"
         private const val OPERIT_PACKAGE = "com.ai.assistance.operit"
+
+        internal fun isOperitInternalPath(path: String): Boolean {
+            val normalizedPath = path.trim()
+            return normalizedPath.startsWith("/data/data/$OPERIT_PACKAGE") ||
+                normalizedPath.startsWith("/data/user/0/$OPERIT_PACKAGE")
+        }
     }
     
     /**
@@ -63,9 +69,7 @@ open class DebuggerFileSystemTools(context: Context) : AccessibilityFileSystemTo
      * 仅针对 /data/data/com.ai.assistance.operit 开头的路径返回true
      */
     protected fun isOperitInternalPath(path: String): Boolean {
-        val normalizedPath = path.trim()
-        return normalizedPath.startsWith("/data/data/$OPERIT_PACKAGE") ||
-               normalizedPath.startsWith("/data/user/0/$OPERIT_PACKAGE")
+        return Companion.isOperitInternalPath(path)
     }
 
     private fun shQuote(value: String): String {

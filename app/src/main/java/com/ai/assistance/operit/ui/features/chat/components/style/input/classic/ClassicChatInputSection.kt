@@ -43,6 +43,12 @@ import com.ai.assistance.operit.R
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.isShiftPressed
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextOverflow
@@ -69,6 +75,7 @@ fun ClassicChatInputSection(
     actualViewModel: ChatViewModel,
     userMessage: TextFieldValue,
     onUserMessageChange: (TextFieldValue) -> Unit,
+    enableEnterToSend: Boolean = false,
     onSendMessage: () -> Unit,
     onQueueMessage: () -> Unit,
     onCancelMessage: () -> Unit,
@@ -201,6 +208,20 @@ fun ClassicChatInputSection(
     // 当本地状态改变时通知外部
     androidx.compose.runtime.LaunchedEffect(showAttachmentPanel) {
         onAttachmentPanelStateChange?.invoke(showAttachmentPanel)
+    }
+    fun handleEnterSendAction() {
+        if (!canSendMessage) return
+        if (showQueueAction) {
+            onQueueMessage()
+            setShowAttachmentPanel(false)
+            return
+        }
+        if (isOverTokenLimit) {
+            showTokenLimitDialog.value = true
+            return
+        }
+        onSendMessage()
+        setShowAttachmentPanel(false)
     }
 
     val surfaceColor = when {
@@ -415,14 +436,33 @@ fun ClassicChatInputSection(
                     },
                     modifier = Modifier
                         .weight(1f)
-                        .heightIn(min = 38.dp),
+                        .heightIn(min = 38.dp)
+                        .onPreviewKeyEvent { keyEvent ->
+                            if (!enableEnterToSend) {
+                                false
+                            } else if (
+                                keyEvent.type == KeyEventType.KeyDown &&
+                                keyEvent.key == Key.Enter &&
+                                !keyEvent.isShiftPressed
+                            ) {
+                                handleEnterSendAction()
+                                true
+                            } else {
+                                false
+                            }
+                        },
                     textStyle = modernTextStyle,
                     maxLines = 5,
                     minLines = 1,
                     singleLine = false,
                     keyboardOptions =
-                    KeyboardOptions(imeAction = ImeAction.Default),
-                    keyboardActions = KeyboardActions(),
+                    KeyboardOptions(imeAction = if (enableEnterToSend) ImeAction.Send else ImeAction.Default),
+                    keyboardActions =
+                    if (enableEnterToSend) {
+                        KeyboardActions(onSend = { handleEnterSendAction() })
+                    } else {
+                        KeyboardActions()
+                    },
                     colors =
                     OutlinedTextFieldDefaults.colors(
                         focusedBorderColor =
@@ -432,14 +472,12 @@ fun ClassicChatInputSection(
                     ),
                     shape = RoundedCornerShape(16.dp),
                     trailingIcon = {
-                        if (userMessage.text.contains("\n")) {
-                            IconButton(onClick = { showFullscreenInput.value = true }) {
-                                Icon(
-                                    imageVector = Icons.Default.Fullscreen,
-                                    contentDescription = "Fullscreen input",
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
+                        IconButton(onClick = { showFullscreenInput.value = true }) {
+                            Icon(
+                                imageVector = Icons.Default.Fullscreen,
+                                contentDescription = stringResource(R.string.chat_fullscreen_input),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                         }
                     },
                     enabled = !isProcessing || allowTextInputWhileProcessing

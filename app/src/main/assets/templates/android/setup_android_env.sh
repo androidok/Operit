@@ -9,10 +9,25 @@ command_exists() {
   command -v "$1" >/dev/null 2>&1
 }
 
+speed_to_int() {
+  local speed="$1"
+  if [[ ! "$speed" =~ ^[0-9]+(\.[0-9]+)?$ ]]; then
+    echo 0
+    return
+  fi
+  local speed_int="${speed%.*}"
+  if [[ -z "$speed_int" ]]; then
+    speed_int=0
+  fi
+  echo "$speed_int"
+}
+
 GRADLE_VERSION="8.7"
 GRADLE_ROOT="${GRADLE_ROOT:-$HOME/gradle}"
 GRADLE_DIST="gradle-${GRADLE_VERSION}"
 GRADLE_ZIP="${GRADLE_ROOT}/${GRADLE_DIST}-bin.zip"
+GRADLE_USER_HOME="${GRADLE_USER_HOME:-$HOME/.gradle}"
+export GRADLE_USER_HOME
 APT_UPDATED=0
 
 ping_host() {
@@ -40,6 +55,7 @@ select_download_url() {
   local default_url="$2"
   local default_host="$3"
   shift 3
+  local mirror_args=("$@")
 
   log "Selecting fastest mirror for $label"
 
@@ -47,38 +63,44 @@ select_download_url() {
     local best_url="$default_url"
     local best_speed=0
 
-    local speed
-    speed=$(measure_download_speed "$default_url") || speed="0"
-    if [[ ! "$speed" =~ ^[0-9]+(\.[0-9]+)?$ ]]; then
-      speed="0"
-    fi
-    local speed_int="${speed%.*}"
-    if [[ -z "$speed_int" ]]; then
-      speed_int=0
-    fi
-    if [[ "$speed_int" -gt "$best_speed" ]]; then
-      best_speed="$speed_int"
-      best_url="$default_url"
-    fi
+    local probe_dir
+    probe_dir=$(mktemp -d)
 
-    while (( "$#" )); do
-      local host="$1"
-      local url="$2"
-      shift 2
+    {
+      local speed
+      speed=$(measure_download_speed "$default_url") || speed="0"
+      printf '%s\t%s\n' "$(speed_to_int "$speed")" "$default_url" > "$probe_dir/default"
+    } &
 
-      speed=$(measure_download_speed "$url") || speed="0"
-      if [[ ! "$speed" =~ ^[0-9]+(\.[0-9]+)?$ ]]; then
-        speed="0"
-      fi
-      speed_int="${speed%.*}"
-      if [[ -z "$speed_int" ]]; then
-        speed_int=0
-      fi
-      if [[ "$speed_int" -gt "$best_speed" ]]; then
+    local i=0
+    local probe_idx=0
+    while (( i < ${#mirror_args[@]} )); do
+      local url="${mirror_args[$((i + 1))]}"
+      local key="mirror_${probe_idx}"
+      {
+        local speed
+        speed=$(measure_download_speed "$url") || speed="0"
+        printf '%s\t%s\n' "$(speed_to_int "$speed")" "$url" > "$probe_dir/$key"
+      } &
+      i=$((i + 2))
+      probe_idx=$((probe_idx + 1))
+    done
+
+    wait
+
+    local result_file
+    while IFS= read -r -d '' result_file; do
+      local speed_int
+      speed_int=$(cut -f1 "$result_file")
+      local url
+      url=$(cut -f2- "$result_file")
+      if [[ -n "$speed_int" && "$speed_int" -gt "$best_speed" ]]; then
         best_speed="$speed_int"
         best_url="$url"
       fi
-    done
+    done < <(find "$probe_dir" -type f -print0)
+
+    rm -rf "$probe_dir"
 
     if [[ "$best_speed" -gt 0 ]]; then
       log "Fastest mirror selected for $label: $best_url (speed=${best_speed}B/s)"
@@ -94,10 +116,11 @@ select_download_url() {
     return 0
   fi
 
-  while (( "$#" )); do
-    local host="$1"
-    local url="$2"
-    shift 2
+  local i=0
+  while (( i < ${#mirror_args[@]} )); do
+    local host="${mirror_args[$i]}"
+    local url="${mirror_args[$((i + 1))]}"
+    i=$((i + 2))
     if ping_host "$host"; then
       log "Using mirror for $label: $host"
       echo "$url"
@@ -247,28 +270,18 @@ ensure_android_tools() {
 }
 
 ensure_gradle() {
-  # 检查是否已安装Gradle，并且版本是否>=8.7
-  if command_exists gradle; then
-    local installed_version
-    installed_version=$(gradle --version 2>/dev/null | grep -oP 'Gradle \K[0-9.]+' | head -1)
-    if [[ -n "$installed_version" ]]; then
-      log "Gradle version $installed_version detected"
-      # 比较版本号，如果已安装版本>=8.7，则跳过安装
-      if [[ "$(printf '%s\n' "$installed_version" "8.7" | sort -V | head -1)" == "8.7" ]]; then
-        log "Gradle version $installed_version is >= 8.7, skipping installation"
-        return
-      else
-        log "Gradle version $installed_version is < 8.7, will install Gradle 8.7"
-      fi
-    else
-      log "Gradle detected but version check failed, will install Gradle 8.7"
-    fi
-  else
-    log "Gradle not found, will install Gradle 8.7"
-  fi
-  
   install_packages unzip
   mkdir -p "$GRADLE_ROOT"
+  if command_exists gradle; then
+    local installed_version
+    installed_version=$(gradle --version 2>/dev/null | grep -oP 'Gradle \K[0-9.]+' | head -1 || true)
+    if [[ -n "$installed_version" ]]; then
+      log "System Gradle detected: $installed_version (still preparing local Gradle zip for wrapper cache)"
+    else
+      log "System Gradle detected (version parse failed); preparing local Gradle zip for wrapper cache"
+    fi
+  fi
+
   if [[ ! -f "$GRADLE_ZIP" ]]; then
     log "Downloading Gradle ${GRADLE_VERSION}"
     local gradle_url
@@ -282,9 +295,14 @@ ensure_gradle() {
   else
     log "Gradle zip already present: $GRADLE_ZIP"
   fi
+
   if [[ ! -d "$GRADLE_ROOT/$GRADLE_DIST" ]]; then
+    log "Extracting Gradle ${GRADLE_VERSION}"
     unzip -q "$GRADLE_ZIP" -d "$GRADLE_ROOT"
+  else
+    log "Local Gradle already extracted: $GRADLE_ROOT/$GRADLE_DIST"
   fi
+
   export GRADLE_HOME="$GRADLE_ROOT/$GRADLE_DIST"
   export PATH="$GRADLE_HOME/bin:$PATH"
 }
@@ -294,11 +312,38 @@ update_gradle_wrapper_properties() {
   if [[ ! -f "$wrapper_file" ]]; then
     return
   fi
-  local file_url="file\\://$GRADLE_ZIP"
+  if [[ ! -f "$GRADLE_ZIP" ]]; then
+    log "Gradle zip not found; keeping existing wrapper distributionUrl"
+    return
+  fi
+
+  local gradle_zip_abs="$GRADLE_ZIP"
+  if command_exists readlink; then
+    gradle_zip_abs=$(readlink -f "$GRADLE_ZIP" 2>/dev/null || echo "$GRADLE_ZIP")
+  fi
+  local file_url="file\\://$gradle_zip_abs"
+
   if grep -q '^distributionUrl=' "$wrapper_file"; then
     sed -i "s|^distributionUrl=.*|distributionUrl=$file_url|" "$wrapper_file"
   else
     echo "distributionUrl=$file_url" >> "$wrapper_file"
+  fi
+  log "Wrapper distributionUrl set to local file: $gradle_zip_abs"
+}
+
+warmup_gradle_wrapper_cache() {
+  if [[ ! -x "./gradlew" ]]; then
+    log "gradlew not found; skipping wrapper cache warm-up"
+    return 0
+  fi
+  if [[ ! -f "gradle/wrapper/gradle-wrapper.properties" ]]; then
+    log "gradle-wrapper.properties not found; skipping wrapper cache warm-up"
+    return 0
+  fi
+  log "Warming Gradle wrapper cache"
+  if ! ./gradlew --version --no-daemon >/dev/null; then
+    log "Wrapper cache warm-up failed; continuing"
+    return 1
   fi
 }
 
@@ -454,6 +499,7 @@ export JAVA_HOME=$JAVA_HOME
 export ANDROID_HOME=$ANDROID_HOME
 export ANDROID_SDK_ROOT=$ANDROID_HOME
 export PATH=\$ANDROID_HOME/cmdline-tools/latest/bin:\$ANDROID_HOME/platform-tools:\$JAVA_HOME/bin:\$PATH
+export GRADLE_USER_HOME=$GRADLE_USER_HOME
 export GRADLE_HOME=${GRADLE_HOME:-$HOME/gradle/gradle-8.7}
 export PATH=\$GRADLE_HOME/bin:\$PATH
 # <<< operit android env <<<
@@ -464,17 +510,73 @@ EOF
   fi
 }
 
+warmup_gradle_cache_for_aapt2() {
+  local gradle_cmd="$GRADLE_HOME/bin/gradle"
+  if [[ ! -x "$gradle_cmd" ]]; then
+    log "Local Gradle not found: $gradle_cmd"
+    return 1
+  fi
+  log "Running warm-up Gradle task to resolve and execute AAPT2"
+  if ! "$gradle_cmd" --no-daemon --rerun-tasks :app:processDebugResources; then
+    log "AAPT2 pre-replace warm-up failed; continuing to patch aapt2"
+    return 1
+  fi
+}
+
+warmup_gradle_cache_after_aapt2_replace() {
+  local gradle_cmd="$GRADLE_HOME/bin/gradle"
+  if [[ ! -x "$gradle_cmd" ]]; then
+    log "Local Gradle not found: $gradle_cmd"
+    return 1
+  fi
+  log "Running post-replace warm-up to ensure patched AAPT2 is used"
+  if ! "$gradle_cmd" --no-daemon --rerun-tasks :app:processDebugResources; then
+    log "AAPT2 post-replace warm-up failed; setup will still continue"
+    return 1
+  fi
+}
+
 replace_aapt2() {
+  local aapt2_github_url
+  aapt2_github_url="https://github.com/AndroidIDEOfficial/platform-tools/releases/download/v34.0.4/aapt2-arm64-v8a"
+
   local aapt2_url
   aapt2_url=$(select_download_url \
     "ARM64 aapt2" \
-    "https://github.com/AndroidIDEOfficial/platform-tools/releases/download/v34.0.4/aapt2-arm64-v8a" \
+    "$aapt2_github_url" \
     "github.com" \
-    "ghfast.top" "https://ghfast.top/https://github.com/AndroidIDEOfficial/platform-tools/releases/download/v34.0.4/aapt2-arm64-v8a" \
-    "ghproxy.com" "https://ghproxy.com/https://github.com/AndroidIDEOfficial/platform-tools/releases/download/v34.0.4/aapt2-arm64-v8a" \
-    "mirror.ghproxy.com" "https://mirror.ghproxy.com/https://github.com/AndroidIDEOfficial/platform-tools/releases/download/v34.0.4/aapt2-arm64-v8a" \
-    "ghproxy.net" "https://ghproxy.net/https://github.com/AndroidIDEOfficial/platform-tools/releases/download/v34.0.4/aapt2-arm64-v8a" \
-    "gh-proxy.com" "https://gh-proxy.com/https://github.com/AndroidIDEOfficial/platform-tools/releases/download/v34.0.4/aapt2-arm64-v8a" \
+    "ghfast.top" "https://ghfast.top/$aapt2_github_url" \
+    "ghproxy.com" "https://ghproxy.com/$aapt2_github_url" \
+    "mirror.ghproxy.com" "https://mirror.ghproxy.com/$aapt2_github_url" \
+    "ghproxy.net" "https://ghproxy.net/$aapt2_github_url" \
+    "gh-proxy.com" "https://gh-proxy.com/$aapt2_github_url" \
+    "gh.h233.eu.org" "https://gh.h233.eu.org/$aapt2_github_url" \
+    "ghproxy.1888866.xyz" "https://ghproxy.1888866.xyz/$aapt2_github_url" \
+    "ghproxy.cfd" "https://ghproxy.cfd/$aapt2_github_url" \
+    "github.boki.moe" "https://github.boki.moe/$aapt2_github_url" \
+    "gh-proxy.net" "https://gh-proxy.net/$aapt2_github_url" \
+    "gh.jasonzeng.dev" "https://gh.jasonzeng.dev/$aapt2_github_url" \
+    "gh.monlor.com" "https://gh.monlor.com/$aapt2_github_url" \
+    "fastgit.cc" "https://fastgit.cc/$aapt2_github_url" \
+    "github.tbedu.top" "https://github.tbedu.top/$aapt2_github_url" \
+    "firewall.lxstd.org" "https://firewall.lxstd.org/$aapt2_github_url" \
+    "github.ednovas.xyz" "https://github.ednovas.xyz/$aapt2_github_url" \
+    "ghfile.geekertao.top" "https://ghfile.geekertao.top/$aapt2_github_url" \
+    "gh.chjina.com" "https://gh.chjina.com/$aapt2_github_url" \
+    "ghpxy.hwinzniej.top" "https://ghpxy.hwinzniej.top/$aapt2_github_url" \
+    "cdn.crashmc.com" "https://cdn.crashmc.com/$aapt2_github_url" \
+    "git.yylx.win" "https://git.yylx.win/$aapt2_github_url" \
+    "gitproxy.mrhjx.cn" "https://gitproxy.mrhjx.cn/$aapt2_github_url" \
+    "ghproxy.cxkpro.top" "https://ghproxy.cxkpro.top/$aapt2_github_url" \
+    "gh.xxooo.cf" "https://gh.xxooo.cf/$aapt2_github_url" \
+    "github.limoruirui.com" "https://github.limoruirui.com/$aapt2_github_url" \
+    "gh.llkk.cc" "https://gh.llkk.cc/$aapt2_github_url" \
+    "down.npee.cn" "https://down.npee.cn/?$aapt2_github_url" \
+    "hub.gitmirror.com" "https://hub.gitmirror.com/$aapt2_github_url" \
+    "gh.nxnow.top" "https://gh.nxnow.top/$aapt2_github_url" \
+    "gh.zwy.one" "https://gh.zwy.one/$aapt2_github_url" \
+    "ghproxy.monkeyray.net" "https://ghproxy.monkeyray.net/$aapt2_github_url" \
+    "gh.xx9527.cn" "https://gh.xx9527.cn/$aapt2_github_url" \
     "gitclone.com" "https://gitclone.com/github.com/AndroidIDEOfficial/platform-tools/releases/download/v34.0.4/aapt2-arm64-v8a")
   local tmp_dir
   tmp_dir=$(mktemp -d)
@@ -488,19 +590,33 @@ replace_aapt2() {
     log "Replaced SDK build-tools aapt2"
   fi
 
-  local gradle_aapt_dir="$HOME/.gradle/caches/modules-2/files-2.1/com.android.tools.build/aapt2"
+  local gradle_cache_root="$GRADLE_USER_HOME/caches"
+  local gradle_aapt_dir="$gradle_cache_root/modules-2/files-2.1/com.android.tools.build/aapt2"
   if [[ -d "$gradle_aapt_dir" ]]; then
+    local updated_jar_count=0
     while IFS= read -r -d '' jar_path; do
       local jar_dir
       jar_dir=$(dirname "$jar_path")
       cp "$aapt2_path" "$jar_dir/aapt2"
       (cd "$jar_dir" && zip -q -f "$(basename "$jar_path")" aapt2)
+      updated_jar_count=$((updated_jar_count + 1))
     done < <(find "$gradle_aapt_dir" -name "aapt2-*-linux.jar" -print0)
-    log "Updated Gradle cache aapt2 jars"
+    log "Updated Gradle cache aapt2 jars: $updated_jar_count"
+  else
+    log "Gradle aapt2 module cache not found: $gradle_aapt_dir"
   fi
 
-  if [[ -d "$HOME/.gradle/caches/transforms-4" ]]; then
-    find "$HOME/.gradle/caches/transforms-4" -name "aapt2" -type f -exec cp "$aapt2_path" {} \; 2>/dev/null || true
+  local updated_transform_count=0
+  while IFS= read -r -d '' transforms_dir; do
+    while IFS= read -r -d '' transformed_aapt2; do
+      cp "$aapt2_path" "$transformed_aapt2"
+      updated_transform_count=$((updated_transform_count + 1))
+    done < <(find "$transforms_dir" -name "aapt2" -type f -print0 2>/dev/null || true)
+  done < <(find "$gradle_cache_root" -maxdepth 1 -type d -name "transforms-*" -print0 2>/dev/null || true)
+  if [[ "$updated_transform_count" -gt 0 ]]; then
+    log "Updated transformed aapt2 binaries: $updated_transform_count"
+  else
+    log "No transformed aapt2 binaries found under: $gradle_cache_root"
   fi
 
   rm -rf "$tmp_dir"
@@ -522,10 +638,19 @@ main() {
   ensure_android_tools
   ensure_gradle
   update_gradle_wrapper_properties
+  if ! warmup_gradle_wrapper_cache; then
+    log "Ignoring wrapper warm-up error and continuing"
+  fi
   restore_gradle_properties
   restore_gradlew_bat
   update_local_properties
+  if ! warmup_gradle_cache_for_aapt2; then
+    log "Ignoring pre-replace warm-up error and continuing to patch aapt2"
+  fi
   replace_aapt2
+  if ! warmup_gradle_cache_after_aapt2_replace; then
+    log "Ignoring post-replace warm-up error and continuing"
+  fi
   configure_env_persistence
 
   log "Android environment setup complete"

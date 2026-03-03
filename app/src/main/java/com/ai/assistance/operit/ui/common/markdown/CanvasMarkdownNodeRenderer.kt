@@ -1157,17 +1157,13 @@ private fun calculateLayout(
             val markerEndPadding = 4f * density.density
             
             val textSizePx = with(density) { bodyMediumSize.toPx() }
-            val boldPaint = PaintCache.getPaint(textColor, textSizePx, boldTypeface)
             val textPaint = PaintCache.getTextPaint(textColor, textSizePx, normalTypeface)
+            val markerPaint = PaintCache.getPaint(textColor, textSizePx, normalTypeface)
             
             // 测量标记宽度
-            val markerWidth = boldPaint.measureText("•")
+            val markerWidth = markerPaint.measureText("•")
             val contentX = startPadding + markerWidth + markerEndPadding
-            
-            // 绘制标记
-            val markerY = currentY + textSizePx + (1f * density.density)
-            instructions.add(DrawInstruction.Text("•", startPadding, markerY, boldPaint))
-            
+
             // 使用 StaticLayout 绘制内容（支持自动换行）
             val contentWidth = (safeAvailableWidthPx - contentX.toInt()).coerceAtLeast(1)
             
@@ -1193,6 +1189,10 @@ private fun calculateLayout(
             } else {
                 LayoutCache.getLayout(itemText, textPaint, contentWidth, textColor, normalTypeface)
             }
+
+            // 使用首行真实基线定位圆点，避免不同字体/字重下出现垂直漂移
+            val markerY = currentY + layout.getLineBaseline(0)
+            instructions.add(DrawInstruction.Text("•", startPadding, markerY, markerPaint))
             instructions.add(DrawInstruction.TextLayout(layout, contentX, currentY, layout.text))
             currentY += layout.height
             maxWidth = maxOf(maxWidth, calculateActualWidth(layout, contentX, safeAvailableWidthPx))

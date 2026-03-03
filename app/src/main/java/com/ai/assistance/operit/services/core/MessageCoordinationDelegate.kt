@@ -269,7 +269,9 @@ class MessageCoordinationDelegate(
             }
         } catch (e: Exception) {
             AppLogger.e(TAG, "解析角色卡对话模型绑定失败", e)
-            uiStateDelegate.showErrorMessage(e.message ?: "角色卡对话模型绑定解析失败")
+            uiStateDelegate.showErrorMessage(
+                e.message ?: context.getString(R.string.role_card_chat_model_binding_parse_failed)
+            )
             return
         }
 
@@ -432,7 +434,7 @@ class MessageCoordinationDelegate(
 
         val timeline = mutableListOf<Pair<String, String>>()
         if (originalUserText.isNotBlank()) {
-            timeline.add("用户" to originalUserText)
+            timeline.add(context.getString(R.string.message_role_user) to originalUserText)
         }
 
         val currentChat = chatHistoryDelegate.chatHistories.value.firstOrNull { it.id == chatId }

@@ -1,5 +1,6 @@
 package com.ai.assistance.operit.ui.features.about.screens
 
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
@@ -140,6 +141,7 @@ private fun mapPatchStage(stage: PatchUpdateInstaller.Stage): PatchUpdatePhase {
 }
 
 private fun reducePatchUpdateState(
+    context: Context,
     previous: PatchUpdateDialogState?,
     event: PatchUpdateInstaller.ProgressEvent
 ): PatchUpdateDialogState {
@@ -165,7 +167,7 @@ private fun reducePatchUpdateState(
         is PatchUpdateInstaller.ProgressEvent.MirrorProbeStarted -> {
             base.copy(
                 phase = PatchUpdatePhase.SELECTING_MIRROR,
-                message = "正在测速镜像",
+                message = context.getString(R.string.patch_update_testing_mirrors),
                 mirrorResults = emptyMap(),
                 mirrorCompleted = 0,
                 mirrorTotal = event.total
@@ -184,7 +186,7 @@ private fun reducePatchUpdateState(
         is PatchUpdateInstaller.ProgressEvent.MirrorSelected -> {
             base.copy(
                 selectedMirror = event.name,
-                message = "已选择镜像：${event.name}"
+                message = context.getString(R.string.patch_update_selected_mirror, event.name)
             )
         }
         is PatchUpdateInstaller.ProgressEvent.DownloadProgress -> {
@@ -532,7 +534,7 @@ fun AboutScreen(
         patchUpdateStateFlow.value =
             PatchUpdateDialogState(
                 phase = PatchUpdatePhase.DOWNLOADING_META,
-                message = "准备更新到 $patchVersion，正在下载补丁",
+                message = context.getString(R.string.patch_update_prepare_downloading, patchVersion),
                 mirrorTotal = 0
             )
 
@@ -550,7 +552,7 @@ fun AboutScreen(
                                 if (current == null) {
                                     null
                                 } else {
-                                    reducePatchUpdateState(current, event)
+                                    reducePatchUpdateState(context, current, event)
                                 }
                             }
                         }
@@ -558,10 +560,10 @@ fun AboutScreen(
                     patchUpdateStateFlow.update { current ->
                         (current ?: PatchUpdateDialogState(
                             phase = PatchUpdatePhase.READY_TO_INSTALL,
-                            message = "准备安装"
+                            message = context.getString(R.string.full_update_ready_to_install)
                         )).copy(
                             phase = PatchUpdatePhase.READY_TO_INSTALL,
-                            message = "准备安装"
+                            message = context.getString(R.string.full_update_ready_to_install)
                         )
                     }
 
@@ -576,7 +578,7 @@ fun AboutScreen(
                     patchUpdateStateFlow.value =
                         PatchUpdateDialogState(
                             phase = PatchUpdatePhase.ERROR,
-                            message = "补丁更新失败",
+                            message = context.getString(R.string.patch_update_failed_simple),
                             errorMessage = e.message ?: context.getString(R.string.unknown_error)
                         )
                 } finally {
@@ -592,7 +594,7 @@ fun AboutScreen(
         patchUpdateStateFlow.value =
             PatchUpdateDialogState(
                 phase = PatchUpdatePhase.SELECTING_MIRROR,
-                message = "准备更新到 $patchVersion，正在测速镜像",
+                message = context.getString(R.string.patch_update_prepare_testing_mirrors, patchVersion),
                 mirrorTotal = 0
             )
 
@@ -609,7 +611,7 @@ fun AboutScreen(
                                 if (current == null) {
                                     null
                                 } else {
-                                    reducePatchUpdateState(current, event)
+                                    reducePatchUpdateState(context, current, event)
                                 }
                             }
                         }
@@ -617,10 +619,10 @@ fun AboutScreen(
                     patchUpdateStateFlow.update { current ->
                         (current ?: PatchUpdateDialogState(
                             phase = PatchUpdatePhase.READY_TO_INSTALL,
-                            message = "准备安装"
+                            message = context.getString(R.string.full_update_ready_to_install)
                         )).copy(
                             phase = PatchUpdatePhase.READY_TO_INSTALL,
-                            message = "准备安装"
+                            message = context.getString(R.string.full_update_ready_to_install)
                         )
                     }
 
@@ -635,7 +637,7 @@ fun AboutScreen(
                     patchUpdateStateFlow.value =
                         PatchUpdateDialogState(
                             phase = PatchUpdatePhase.ERROR,
-                            message = "补丁更新失败",
+                            message = context.getString(R.string.patch_update_failed_simple),
                             errorMessage = e.message ?: context.getString(R.string.unknown_error)
                         )
                 } finally {
@@ -1155,14 +1157,21 @@ private fun PatchUpdateProgressDialog(
                     PatchUpdatePhase.SELECTING_MIRROR -> {
                         if (state.mirrorTotal > 0) {
                             Text(
-                                text = "测速进度：${state.mirrorCompleted}/${state.mirrorTotal}",
+                                text = stringResource(
+                                    id = R.string.patch_update_mirror_progress,
+                                    state.mirrorCompleted,
+                                    state.mirrorTotal
+                                ),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                         if (state.selectedMirror != null) {
                             Text(
-                                text = "已选择：${state.selectedMirror}",
+                                text = stringResource(
+                                    id = R.string.patch_update_selected_short,
+                                    state.selectedMirror
+                                ),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.primary
                             )
@@ -1170,14 +1179,20 @@ private fun PatchUpdateProgressDialog(
                         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                             sortPatchMirrorNamesForDisplay(state.mirrorResults.keys, state.mirrorResults).forEach { name ->
                                 val summary = state.mirrorResults[name] ?: return@forEach
-                                val statusText = if (summary.ok) "可用" else "不可用"
+                                val statusText =
+                                    if (summary.ok) {
+                                        stringResource(id = R.string.patch_update_mirror_available)
+                                    } else {
+                                        stringResource(id = R.string.patch_update_mirror_unavailable)
+                                    }
                                 val detail =
                                     if (summary.ok) {
                                         val speed = summary.speedBytesPerSec ?: 0L
                                         val latency = summary.latencyMs ?: 0L
                                         "${formatSpeed(speed)} · ${latency}ms"
                                     } else {
-                                        summary.error ?: "测速失败"
+                                        summary.error
+                                            ?: stringResource(id = R.string.patch_update_mirror_test_failed)
                                     }
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
@@ -1241,7 +1256,12 @@ private fun PatchUpdateProgressDialog(
                         ) {
                             CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
                             Text(
-                                text = if (state.phase == PatchUpdatePhase.READY_TO_INSTALL) "正在拉起安装..." else "处理中...",
+                                text =
+                                    if (state.phase == PatchUpdatePhase.READY_TO_INSTALL) {
+                                        stringResource(id = R.string.patch_update_launching_installer)
+                                    } else {
+                                        stringResource(id = R.string.processing)
+                                    },
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )

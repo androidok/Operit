@@ -5,6 +5,7 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import androidx.core.content.FileProvider
+import com.ai.assistance.operit.R
 import com.ai.assistance.operit.data.api.GitHubApiService
 import com.ai.assistance.operit.util.GithubReleaseUtil
 import com.ai.assistance.operit.util.AppLogger
@@ -123,7 +124,12 @@ object PatchUpdateInstaller {
         metaUrl: String,
         onEvent: (ProgressEvent) -> Unit
     ): File = withContext(Dispatchers.IO) {
-        onEvent(ProgressEvent.StageChanged(Stage.SELECTING_MIRROR, "正在选择镜像"))
+        onEvent(
+            ProgressEvent.StageChanged(
+                Stage.SELECTING_MIRROR,
+                context.getString(R.string.patch_update_stage_selecting_mirror)
+            )
+        )
         val mirrorKey = selectFastestMirrorKeyWithProgress(
             patchUrl = patchUrl,
             metaUrl = metaUrl,
@@ -173,11 +179,16 @@ object PatchUpdateInstaller {
 
         val selectedTargetMetaUrl = selectMirrorUrl(metaUrl, mirrorKey)
 
-        onEvent(ProgressEvent.StageChanged(Stage.DOWNLOADING_META, "正在下载补丁元信息"))
+        onEvent(
+            ProgressEvent.StageChanged(
+                Stage.DOWNLOADING_META,
+                context.getString(R.string.patch_update_stage_downloading_meta)
+            )
+        )
         downloadToFile(
             url = selectedTargetMetaUrl,
             out = targetMetaFile,
-            label = "补丁元信息",
+            label = context.getString(R.string.patch_update_label_meta),
             onEvent = onEvent
         )
         val targetMeta = JSONObject(targetMetaFile.readText())
@@ -188,7 +199,12 @@ object PatchUpdateInstaller {
         }
 
         val baseShaActual = sha256Hex(currentApk)
-        onEvent(ProgressEvent.StageChanged(Stage.VERIFYING_APK, "正在解析补丁链路"))
+        onEvent(
+            ProgressEvent.StageChanged(
+                Stage.VERIFYING_APK,
+                context.getString(R.string.patch_update_stage_resolving_chain)
+            )
+        )
         val chain = resolvePatchChain(
             context = context,
             patchUrl = patchUrl,
@@ -210,11 +226,20 @@ object PatchUpdateInstaller {
             val stepMetaFile = File(workDir, "patch_meta_$stepNo.json")
             val stepPatchFile = File(workDir, "patch_$stepNo.zip")
 
-            onEvent(ProgressEvent.StageChanged(Stage.DOWNLOADING_META, "正在下载补丁元信息 ($stepNo/$total)"))
+            onEvent(
+                ProgressEvent.StageChanged(
+                    Stage.DOWNLOADING_META,
+                    context.getString(
+                        R.string.patch_update_stage_downloading_meta_step,
+                        stepNo,
+                        total
+                    )
+                )
+            )
             downloadToFile(
                 url = selectMirrorUrl(step.metaUrl, mirrorKey),
                 out = stepMetaFile,
-                label = "补丁元信息 $stepNo/$total",
+                label = context.getString(R.string.patch_update_label_meta_step, stepNo, total),
                 onEvent = onEvent
             )
             val stepMeta = JSONObject(stepMetaFile.readText())
@@ -232,30 +257,66 @@ object PatchUpdateInstaller {
                 }
             }
 
-            onEvent(ProgressEvent.StageChanged(Stage.DOWNLOADING_PATCH, "正在下载补丁包 ($stepNo/$total)"))
+            onEvent(
+                ProgressEvent.StageChanged(
+                    Stage.DOWNLOADING_PATCH,
+                    context.getString(
+                        R.string.patch_update_stage_downloading_patch_step,
+                        stepNo,
+                        total
+                    )
+                )
+            )
             downloadToFile(
                 url = selectMirrorUrl(step.patchUrl, mirrorKey),
                 out = stepPatchFile,
-                label = "补丁包 $stepNo/$total",
+                label = context.getString(R.string.patch_update_label_patch_step, stepNo, total),
                 multiThread = true,
                 onEvent = onEvent
             )
 
             val patchShaExpected = stepMeta.optString("patchSha256", "")
             if (patchShaExpected.isNotBlank()) {
-                onEvent(ProgressEvent.StageChanged(Stage.VERIFYING_APK, "正在校验补丁包 ($stepNo/$total)"))
+                onEvent(
+                    ProgressEvent.StageChanged(
+                        Stage.VERIFYING_APK,
+                        context.getString(
+                            R.string.patch_update_stage_verifying_patch_step,
+                            stepNo,
+                            total
+                        )
+                    )
+                )
                 val patchShaActual = sha256Hex(stepPatchFile)
                 if (!patchShaActual.equals(patchShaExpected, ignoreCase = true)) {
                     throw IllegalStateException("Patch sha256 mismatch")
                 }
             }
 
-            onEvent(ProgressEvent.StageChanged(Stage.APPLYING_PATCH, "正在合并补丁 ($stepNo/$total)"))
+            onEvent(
+                ProgressEvent.StageChanged(
+                    Stage.APPLYING_PATCH,
+                    context.getString(
+                        R.string.patch_update_stage_applying_patch_step,
+                        stepNo,
+                        total
+                    )
+                )
+            )
             applyApkrawPatch(currentApk, stepPatchFile, stepMeta, nextApk)
 
             val targetShaExpected = stepMeta.optString("targetSha256", "")
             if (targetShaExpected.isNotBlank()) {
-                onEvent(ProgressEvent.StageChanged(Stage.VERIFYING_APK, "正在校验新 APK ($stepNo/$total)"))
+                onEvent(
+                    ProgressEvent.StageChanged(
+                        Stage.VERIFYING_APK,
+                        context.getString(
+                            R.string.patch_update_stage_verifying_new_apk_step,
+                            stepNo,
+                            total
+                        )
+                    )
+                )
                 val targetShaActual = sha256Hex(nextApk)
                 if (!targetShaActual.equals(targetShaExpected, ignoreCase = true)) {
                     throw IllegalStateException("Target sha256 mismatch")
@@ -271,7 +332,12 @@ object PatchUpdateInstaller {
         currentApk.copyTo(outApk, overwrite = true)
 
         cleanupPatchWorkDir(workDir, outApk)
-        onEvent(ProgressEvent.StageChanged(Stage.READY_TO_INSTALL, "准备安装"))
+        onEvent(
+            ProgressEvent.StageChanged(
+                Stage.READY_TO_INSTALL,
+                context.getString(R.string.full_update_ready_to_install)
+            )
+        )
         outApk
     }
 

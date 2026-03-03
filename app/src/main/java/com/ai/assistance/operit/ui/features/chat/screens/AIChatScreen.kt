@@ -53,6 +53,7 @@ import com.ai.assistance.operit.data.model.CharacterCardChatModelBindingMode
 import com.ai.assistance.operit.data.model.InputProcessingState
 import com.ai.assistance.operit.data.model.ToolParameter
 import com.ai.assistance.operit.data.preferences.ApiPreferences
+import com.ai.assistance.operit.data.preferences.DisplayPreferencesManager
 import com.ai.assistance.operit.data.preferences.UserPreferencesManager
 import com.ai.assistance.operit.ui.components.ErrorDialog
 import com.ai.assistance.operit.ui.features.chat.components.*
@@ -166,6 +167,7 @@ val actualViewModel: ChatViewModel = viewModel ?: viewModel { ChatViewModel(cont
 
     // Get background image state
     val preferencesManager = remember { UserPreferencesManager.getInstance(context) }
+    val displayPreferencesManager = remember { DisplayPreferencesManager.getInstance(context) }
     val useBackgroundImage by preferencesManager.useBackgroundImage.collectAsState(initial = false)
     val backgroundImageUri by preferencesManager.backgroundImageUri.collectAsState(initial = null)
     val chatHeaderTransparent by preferencesManager.chatHeaderTransparent.collectAsState(initial = false)
@@ -176,6 +178,7 @@ val actualViewModel: ChatViewModel = viewModel ?: viewModel { ChatViewModel(cont
     val chatHeaderPipIconColor by preferencesManager.chatHeaderPipIconColor.collectAsState(initial = null)
     val chatHeaderOverlayMode by preferencesManager.chatHeaderOverlayMode.collectAsState(initial = false)
     val showInputProcessingStatus by preferencesManager.showInputProcessingStatus.collectAsState(initial = true)
+    val enableEnterToSend by displayPreferencesManager.enableEnterToSend.collectAsState(initial = false)
     val showChatFloatingDotsAnimation by
         preferencesManager.showChatFloatingDotsAnimation.collectAsState(initial = true)
     val hasBackgroundImage = useBackgroundImage && backgroundImageUri != null
@@ -666,6 +669,7 @@ val actualViewModel: ChatViewModel = viewModel ?: viewModel { ChatViewModel(cont
                                         onUserMessageChange = {
                                             actualViewModel.updateUserMessage(it)
                                         },
+                                        enableEnterToSend = enableEnterToSend,
                                         onSendMessage = {
                                             if (currentChatId.isNullOrBlank()) {
                                                 Toast.makeText(
@@ -803,6 +807,7 @@ val actualViewModel: ChatViewModel = viewModel ?: viewModel { ChatViewModel(cont
                                         onUserMessageChange = {
                                             actualViewModel.updateUserMessage(it)
                                         },
+                                        enableEnterToSend = enableEnterToSend,
                                         onSendMessage = {
                                             if (currentChatId.isNullOrBlank()) {
                                                 Toast.makeText(

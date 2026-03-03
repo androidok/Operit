@@ -21,12 +21,14 @@ import com.ai.assistance.operit.core.chat.AIMessageManager
 import com.ai.assistance.operit.core.tools.AIToolHandler
 import com.ai.assistance.operit.data.model.ApiProviderType
 import com.ai.assistance.operit.data.model.AttachmentInfo
+import com.ai.assistance.operit.data.model.AITool
 import com.ai.assistance.operit.data.model.ChatHistory
 import com.ai.assistance.operit.data.model.ChatMessage
 import com.ai.assistance.operit.data.model.FunctionType
 import com.ai.assistance.operit.data.preferences.ApiPreferences
 import com.ai.assistance.operit.data.preferences.ModelConfigManager
 import com.ai.assistance.operit.data.model.PromptFunctionType
+import com.ai.assistance.operit.data.model.ToolParameter
 import com.ai.assistance.operit.R
 import com.ai.assistance.operit.ui.features.chat.webview.LocalWebServer
 import com.ai.assistance.operit.ui.floating.FloatingMode
@@ -1939,6 +1941,20 @@ class ChatViewModel(private val context: Context) : ViewModel() {
     /** 在工作区中执行命令（来自 config.json 按钮） */
     @RequiresApi(Build.VERSION_CODES.O)
     fun executeCommandInWorkspace(command: CommandConfig, workspacePath: String) {
+        val toolName = command.tool?.trim().orEmpty()
+        if (toolName.isNotEmpty()) {
+            executeWorkspaceTool(command, workspacePath, toolName)
+            return
+        }
+
+        val commandText = command.command?.trim().orEmpty()
+        if (commandText.isBlank()) {
+            uiStateDelegate.showErrorMessage(
+                context.getString(R.string.chat_execute_command_failed, "No command/tool configured")
+            )
+            return
+        }
+
         if (terminal == null) {
             uiStateDelegate.showErrorMessage(context.getString(R.string.chat_terminal_requires_android_8))
             return
@@ -1952,7 +1968,7 @@ class ChatViewModel(private val context: Context) : ViewModel() {
 
         viewModelScope.launch {
             try {
-                AppLogger.d(TAG, "Executing workspace command: ${command.command} in $workspacePath")
+                AppLogger.d(TAG, "Executing workspace command: $commandText in $workspacePath")
                 
                 val sessionId: String
                 val workspaceDir = File(workspacePath)
@@ -2006,7 +2022,7 @@ class ChatViewModel(private val context: Context) : ViewModel() {
                 terminal.switchToSession(sessionId)
                 
                 // 执行命令（用户可以立即看到输出）
-                terminal.executeCommand(sessionId, command.command)
+                terminal.executeCommand(sessionId, commandText)
                 
                 AppLogger.d(TAG, "Switched to computer view and executing command in session $sessionId")
             } catch (e: Exception) {
@@ -2016,6 +2032,70 @@ class ChatViewModel(private val context: Context) : ViewModel() {
                 )
             }
         }
+    }
+
+    private fun executeWorkspaceTool(command: CommandConfig, workspacePath: String, toolName: String) {
+        viewModelScope.launch {
+            try {
+                val workspaceDir = File(workspacePath)
+                val toolParameters = command.toolParameters.map { (name, value) ->
+                    ToolParameter(
+                        name = name,
+                        value = resolveWorkspaceToolParameterValue(name, value, workspaceDir)
+                    )
+                }
+                val tool = AITool(
+                    name = toolName,
+                    parameters = toolParameters,
+                    description = "Workspace action: ${command.label}"
+                )
+
+                AppLogger.d(TAG, "Executing workspace tool: $toolName with ${toolParameters.size} params")
+                val result = withContext(Dispatchers.IO) { toolHandler.executeTool(tool) }
+
+                if (!result.success) {
+                    uiStateDelegate.showErrorMessage(
+                        context.getString(
+                            R.string.chat_execute_command_failed,
+                            result.error ?: "Tool execution failed"
+                        )
+                    )
+                }
+            } catch (e: Exception) {
+                AppLogger.e(TAG, "Failed to execute workspace tool", e)
+                uiStateDelegate.showErrorMessage(
+                    context.getString(R.string.chat_execute_command_failed, e.message ?: "")
+                )
+            }
+        }
+    }
+
+    private fun resolveWorkspaceToolParameterValue(name: String, rawValue: String, workspaceDir: File): String {
+        val workspacePath = workspaceDir.absolutePath
+        val expanded = rawValue
+            .replace("${'$'}WORKSPACE", workspacePath)
+            .replace("${'$'}{WORKSPACE}", workspacePath)
+
+        if (!isPathLikeToolParameter(name)) {
+            return expanded
+        }
+
+        val trimmed = expanded.trim()
+        if (trimmed.isEmpty() || trimmed.contains("://")) {
+            return expanded
+        }
+
+        val file = File(trimmed)
+        if (file.isAbsolute) {
+            return trimmed
+        }
+
+        return File(workspaceDir, trimmed).absolutePath
+    }
+
+    private fun isPathLikeToolParameter(name: String): Boolean {
+        val lowered = name.lowercase()
+        return lowered.contains("path") || lowered.contains("file") || lowered.contains("dir")
     }
 
     /** 更新聊天顺序和分组 */

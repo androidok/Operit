@@ -351,6 +351,7 @@ class CustomXmlRenderer(
             }
 
         var expanded by remember { mutableStateOf(false) }
+        var skipCollapseAnimationOnce by remember { mutableStateOf(false) }
         val scrollState = rememberScrollState()
         var autoScrollEnabled by remember { mutableStateOf(true) }
         var userHasInteractedWithScroll by remember { mutableStateOf(false) }
@@ -365,7 +366,15 @@ class CustomXmlRenderer(
                 expandThinkingProcess
             } else {
                 // 思考结束后，总是折叠
+                skipCollapseAnimationOnce = true
                 false
+            }
+        }
+
+        LaunchedEffect(expanded, skipCollapseAnimationOnce) {
+            if (!expanded && skipCollapseAnimationOnce) {
+                // 仅跳过一次自动收起动画，随后恢复手动交互动画
+                skipCollapseAnimationOnce = false
             }
         }
 
@@ -421,6 +430,8 @@ class CustomXmlRenderer(
         ) {
             Row(
                     modifier = Modifier.fillMaxWidth().clickable {
+                        // 用户手动交互时始终保留动画
+                        skipCollapseAnimationOnce = false
                         val newExpandedValue = !expanded
                         expanded = newExpandedValue
                         if (isThinkingInProgress) {
@@ -433,7 +444,9 @@ class CustomXmlRenderer(
                 val rotation by
                         animateFloatAsState(
                                 targetValue = if (expanded) 90f else 0f,
-                                animationSpec = tween(durationMillis = 300),
+                                animationSpec =
+                                    if (skipCollapseAnimationOnce && !expanded) snap()
+                                    else tween(durationMillis = 300),
                                 label = "arrowRotation"
                         )
 
@@ -464,12 +477,16 @@ class CustomXmlRenderer(
                             animationSpec = tween(durationMillis = 220)
                         ),
                     exit =
-                        androidx.compose.animation.shrinkVertically(
-                            animationSpec = tween(durationMillis = 220),
-                            shrinkTowards = Alignment.Top
-                        ) + androidx.compose.animation.fadeOut(
-                            animationSpec = tween(durationMillis = 220)
-                        )
+                        if (skipCollapseAnimationOnce && !expanded) {
+                            ExitTransition.None
+                        } else {
+                            androidx.compose.animation.shrinkVertically(
+                                animationSpec = tween(durationMillis = 220),
+                                shrinkTowards = Alignment.Top
+                            ) + androidx.compose.animation.fadeOut(
+                                animationSpec = tween(durationMillis = 220)
+                            )
+                        }
             ) {
                 if (thinkText.isNotBlank() || thinkMarkdownStream != null) {
                     val hierarchyLineColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.20f)

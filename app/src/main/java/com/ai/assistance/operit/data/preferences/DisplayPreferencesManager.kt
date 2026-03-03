@@ -51,6 +51,7 @@ class DisplayPreferencesManager private constructor(private val context: Context
         // 显示相关设置的 Key
         private val KEY_SHOW_FPS_COUNTER = booleanPreferencesKey("show_fps_counter")
         private val KEY_ENABLE_REPLY_NOTIFICATION = booleanPreferencesKey("enable_reply_notification")
+        private val KEY_ENABLE_ENTER_TO_SEND = booleanPreferencesKey("enable_enter_to_send")
 
         // 自动化显示与行为相关设置的 Key
         private val KEY_ENABLE_EXPERIMENTAL_VIRTUAL_DISPLAY =
@@ -137,6 +138,15 @@ class DisplayPreferencesManager private constructor(private val context: Context
             preferences[KEY_ENABLE_REPLY_NOTIFICATION] ?: true
         }
 
+    /**
+     * 是否启用回车发送
+     * 默认值：false
+     */
+    val enableEnterToSend: Flow<Boolean> =
+        context.displayPreferencesDataStore.data.map { preferences ->
+            preferences[KEY_ENABLE_ENTER_TO_SEND] ?: false
+        }
+
     val enableExperimentalVirtualDisplay: Flow<Boolean> =
         context.displayPreferencesDataStore.data.map { preferences ->
             preferences[KEY_ENABLE_EXPERIMENTAL_VIRTUAL_DISPLAY] ?: true
@@ -179,6 +189,7 @@ class DisplayPreferencesManager private constructor(private val context: Context
         globalUserName: String? = null,
         showFpsCounter: Boolean? = null,
         enableReplyNotification: Boolean? = null,
+        enableEnterToSend: Boolean? = null,
         enableExperimentalVirtualDisplay: Boolean? = null,
         screenshotFormat: String? = null,
         screenshotQuality: Int? = null,
@@ -195,6 +206,7 @@ class DisplayPreferencesManager private constructor(private val context: Context
             globalUserName?.let { preferences[KEY_GLOBAL_USER_NAME] = it }
             showFpsCounter?.let { preferences[KEY_SHOW_FPS_COUNTER] = it }
             enableReplyNotification?.let { preferences[KEY_ENABLE_REPLY_NOTIFICATION] = it }
+            enableEnterToSend?.let { preferences[KEY_ENABLE_ENTER_TO_SEND] = it }
             enableExperimentalVirtualDisplay?.let {
                 preferences[KEY_ENABLE_EXPERIMENTAL_VIRTUAL_DISPLAY] = it
             }
@@ -249,6 +261,7 @@ class DisplayPreferencesManager private constructor(private val context: Context
             preferences.remove(KEY_GLOBAL_USER_NAME)
             preferences[KEY_SHOW_FPS_COUNTER] = false
             preferences[KEY_ENABLE_REPLY_NOTIFICATION] = true
+            preferences[KEY_ENABLE_ENTER_TO_SEND] = false
             preferences[KEY_ENABLE_EXPERIMENTAL_VIRTUAL_DISPLAY] = true
             preferences.remove(KEY_SCREENSHOT_FORMAT)
             preferences.remove(KEY_SCREENSHOT_QUALITY)
