@@ -9,7 +9,6 @@ export interface LinuxSshSetupI18n {
   actionSaveConfig: string;
   errorHostUsernameRequired: string;
   actionSyncTmuxSession: string;
-  errorTmuxSessionRequired: string;
   tmuxSessionNoWindowsAfterCommand: string;
   tmuxSessionNotFoundAutoCreate: string;
   tmuxWindowNoOutput: string;
@@ -37,8 +36,6 @@ export interface LinuxSshSetupI18n {
   fieldPasswordDesc: string;
   fieldPrivateKeyLabel: string;
   fieldPrivateKeyDesc: string;
-  fieldTmuxSessionLabel: string;
-  fieldTmuxSessionDesc: string;
   fieldTimeoutLabel: string;
   fieldTimeoutDesc: string;
   saveConfigButton: string;

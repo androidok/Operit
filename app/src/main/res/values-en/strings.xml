@@ -2006,6 +2006,8 @@
     <string name="theme_chat_input_transparent_title">Input Box Settings</string>
     <string name="theme_chat_input_transparent">Transparent Input Box</string>
     <string name="theme_chat_input_transparent_desc">When enabled, the chat input box will become transparent</string>
+    <string name="theme_chat_input_liquid_glass">Liquid Glass Input Box</string>
+    <string name="theme_chat_input_liquid_glass_desc">When enabled, the transparent input box will use an iOS-style liquid glass effect</string>
     <string name="theme_toolbar_transparent">Toolbar Settings</string>
     <string name="theme_toolbar_transparent_desc">Transparent Toolbar</string>
     <string name="theme_toolbar_transparent_desc_desc">When enabled, the toolbar will become transparent</string>
@@ -3441,6 +3443,8 @@
     <string name="input_style_agent_reserved">Agent style is in development; this is a reserved entry for now</string>
     <string name="chat_style_cursor_user_follow_theme">Follow theme color for command-style user bubble</string>
     <string name="chat_style_cursor_user_follow_theme_desc">When disabled, you can set a custom command-style user bubble color (including alpha)</string>
+    <string name="chat_style_cursor_user_bubble_liquid_glass">Command-style user bubble liquid glass</string>
+    <string name="chat_style_cursor_user_bubble_liquid_glass_desc">When enabled, the command-style user bubble background will use an iOS-style liquid glass effect</string>
     <string name="chat_style_cursor_user_bubble_color">Command-style user bubble</string>
     <string name="chat_style_bubble_color_title">Dialog-style bubble colors</string>
     <string name="chat_style_bubble_user_color">User bubble</string>

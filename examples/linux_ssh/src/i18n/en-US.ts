@@ -11,7 +11,6 @@ export const LINUX_SSH_SETUP_EN_US: LinuxSshSetupI18n = {
   actionSaveConfig: "Save Config",
   errorHostUsernameRequired: "host and username are required",
   actionSyncTmuxSession: "Sync tmux Session",
-  errorTmuxSessionRequired: "tmux session is required",
   tmuxSessionNoWindowsAfterCommand: "No windows in this session yet. Run a command below first.",
   tmuxSessionNotFoundAutoCreate:
     "tmux session not found. Running a command below will create it automatically.",
@@ -42,8 +41,6 @@ export const LINUX_SSH_SETUP_EN_US: LinuxSshSetupI18n = {
   fieldPasswordDesc: "Leave empty to use private key auth",
   fieldPrivateKeyLabel: "Private Key Path (Optional)",
   fieldPrivateKeyDesc: "Full path to the SSH private key file",
-  fieldTmuxSessionLabel: "tmux Session",
-  fieldTmuxSessionDesc: "Session name",
   fieldTimeoutLabel: "Timeout",
   fieldTimeoutDesc: "Milliseconds",
   saveConfigButton: "Save Config",

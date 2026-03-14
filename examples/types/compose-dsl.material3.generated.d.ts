@@ -35,6 +35,7 @@ export interface ComposeGeneratedSpacerProps extends ComposeCommonProps {
 }
 
 export interface ComposeGeneratedLazyColumnProps extends ComposeCommonProps {
+  autoScrollToEnd?: boolean;
   horizontalAlignment?: ComposeAlignment;
   reverseLayout?: boolean;
   spacing?: number;
@@ -102,6 +103,9 @@ export interface ComposeGeneratedCardProps extends ComposeCommonProps {
   shape?: ComposeShape;
 }
 
+export interface ComposeGeneratedMaterialThemeProps extends ComposeCommonProps {
+}
+
 export interface ComposeGeneratedSurfaceProps extends ComposeCommonProps {
   alpha?: number;
   color?: ComposeColor;
@@ -164,6 +168,12 @@ export interface ComposeGeneratedFilledIconButtonProps extends ComposeCommonProp
   onClick: () => void | Promise<void>;
 }
 
+export interface ComposeGeneratedFilledIconToggleButtonProps extends ComposeCommonProps {
+  checked: boolean;
+  enabled?: boolean;
+  onCheckedChange: (checked: boolean) => void;
+}
+
 export interface ComposeGeneratedFilledTonalButtonProps extends ComposeCommonProps {
   enabled?: boolean;
   onClick: () => void | Promise<void>;
@@ -173,6 +183,12 @@ export interface ComposeGeneratedFilledTonalIconButtonProps extends ComposeCommo
   enabled?: boolean;
   icon?: string;
   onClick: () => void | Promise<void>;
+}
+
+export interface ComposeGeneratedFilledTonalIconToggleButtonProps extends ComposeCommonProps {
+  checked: boolean;
+  enabled?: boolean;
+  onCheckedChange: (checked: boolean) => void;
 }
 
 export interface ComposeGeneratedFloatingActionButtonProps extends ComposeCommonProps {
@@ -197,11 +213,14 @@ export interface ComposeGeneratedLargeFloatingActionButtonProps extends ComposeC
   onClick: () => void | Promise<void>;
 }
 
-export interface ComposeGeneratedMaterialThemeProps extends ComposeCommonProps {
-}
-
 export interface ComposeGeneratedModalDrawerSheetProps extends ComposeCommonProps {
   drawerTonalElevation?: number;
+}
+
+export interface ComposeGeneratedModalWideNavigationRailProps extends ComposeCommonProps {
+  expandedHeaderTopPadding?: number;
+  hideOnCollapse?: boolean;
+  verticalArrangement?: ComposeArrangement;
 }
 
 export interface ComposeGeneratedNavigationBarProps extends ComposeCommonProps {
@@ -227,6 +246,12 @@ export interface ComposeGeneratedOutlinedIconButtonProps extends ComposeCommonPr
   onClick: () => void | Promise<void>;
 }
 
+export interface ComposeGeneratedOutlinedIconToggleButtonProps extends ComposeCommonProps {
+  checked: boolean;
+  enabled?: boolean;
+  onCheckedChange: (checked: boolean) => void;
+}
+
 export interface ComposeGeneratedPermanentDrawerSheetProps extends ComposeCommonProps {
   drawerTonalElevation?: number;
 }
@@ -236,6 +261,10 @@ export interface ComposeGeneratedProvideTextStyleProps extends ComposeCommonProp
 }
 
 export interface ComposeGeneratedScaffoldProps extends ComposeCommonProps {
+  contentColor?: ComposeColor;
+}
+
+export interface ComposeGeneratedShortNavigationBarProps extends ComposeCommonProps {
   contentColor?: ComposeColor;
 }
 
@@ -263,6 +292,13 @@ export interface ComposeGeneratedTextButtonProps extends ComposeCommonProps {
 export interface ComposeGeneratedVerticalDividerProps extends ComposeCommonProps {
   color?: ComposeColor;
   thickness?: number;
+}
+
+export interface ComposeGeneratedVerticalDragHandleProps extends ComposeCommonProps {
+}
+
+export interface ComposeGeneratedWideNavigationRailProps extends ComposeCommonProps {
+  verticalArrangement?: ComposeArrangement;
 }
 
 export interface ComposeGeneratedBoxWithConstraintsProps extends ComposeCommonProps {
@@ -306,6 +342,7 @@ export interface ComposeMaterial3GeneratedUiFactoryRegistry {
   Button: ComposeNodeFactory<ComposeGeneratedButtonProps>;
   IconButton: ComposeNodeFactory<ComposeGeneratedIconButtonProps>;
   Card: ComposeNodeFactory<ComposeGeneratedCardProps>;
+  MaterialTheme: ComposeNodeFactory<ComposeGeneratedMaterialThemeProps>;
   Surface: ComposeNodeFactory<ComposeGeneratedSurfaceProps>;
   Icon: ComposeNodeFactory<ComposeGeneratedIconProps>;
   LinearProgressIndicator: ComposeNodeFactory<ComposeGeneratedLinearProgressIndicatorProps>;
@@ -318,27 +355,33 @@ export interface ComposeMaterial3GeneratedUiFactoryRegistry {
   ElevatedCard: ComposeNodeFactory<ComposeGeneratedElevatedCardProps>;
   ExtendedFloatingActionButton: ComposeNodeFactory<ComposeGeneratedExtendedFloatingActionButtonProps>;
   FilledIconButton: ComposeNodeFactory<ComposeGeneratedFilledIconButtonProps>;
+  FilledIconToggleButton: ComposeNodeFactory<ComposeGeneratedFilledIconToggleButtonProps>;
   FilledTonalButton: ComposeNodeFactory<ComposeGeneratedFilledTonalButtonProps>;
   FilledTonalIconButton: ComposeNodeFactory<ComposeGeneratedFilledTonalIconButtonProps>;
+  FilledTonalIconToggleButton: ComposeNodeFactory<ComposeGeneratedFilledTonalIconToggleButtonProps>;
   FloatingActionButton: ComposeNodeFactory<ComposeGeneratedFloatingActionButtonProps>;
   HorizontalDivider: ComposeNodeFactory<ComposeGeneratedHorizontalDividerProps>;
   IconToggleButton: ComposeNodeFactory<ComposeGeneratedIconToggleButtonProps>;
   LargeFloatingActionButton: ComposeNodeFactory<ComposeGeneratedLargeFloatingActionButtonProps>;
-  MaterialTheme: ComposeNodeFactory<ComposeGeneratedMaterialThemeProps>;
   ModalDrawerSheet: ComposeNodeFactory<ComposeGeneratedModalDrawerSheetProps>;
+  ModalWideNavigationRail: ComposeNodeFactory<ComposeGeneratedModalWideNavigationRailProps>;
   NavigationBar: ComposeNodeFactory<ComposeGeneratedNavigationBarProps>;
   NavigationRail: ComposeNodeFactory<ComposeGeneratedNavigationRailProps>;
   OutlinedButton: ComposeNodeFactory<ComposeGeneratedOutlinedButtonProps>;
   OutlinedCard: ComposeNodeFactory<ComposeGeneratedOutlinedCardProps>;
   OutlinedIconButton: ComposeNodeFactory<ComposeGeneratedOutlinedIconButtonProps>;
+  OutlinedIconToggleButton: ComposeNodeFactory<ComposeGeneratedOutlinedIconToggleButtonProps>;
   PermanentDrawerSheet: ComposeNodeFactory<ComposeGeneratedPermanentDrawerSheetProps>;
   ProvideTextStyle: ComposeNodeFactory<ComposeGeneratedProvideTextStyleProps>;
   Scaffold: ComposeNodeFactory<ComposeGeneratedScaffoldProps>;
+  ShortNavigationBar: ComposeNodeFactory<ComposeGeneratedShortNavigationBarProps>;
   SmallFloatingActionButton: ComposeNodeFactory<ComposeGeneratedSmallFloatingActionButtonProps>;
   Snackbar: ComposeNodeFactory<ComposeGeneratedSnackbarProps>;
   Tab: ComposeNodeFactory<ComposeGeneratedTabProps>;
   TextButton: ComposeNodeFactory<ComposeGeneratedTextButtonProps>;
   VerticalDivider: ComposeNodeFactory<ComposeGeneratedVerticalDividerProps>;
+  VerticalDragHandle: ComposeNodeFactory<ComposeGeneratedVerticalDragHandleProps>;
+  WideNavigationRail: ComposeNodeFactory<ComposeGeneratedWideNavigationRailProps>;
   BoxWithConstraints: ComposeNodeFactory<ComposeGeneratedBoxWithConstraintsProps>;
   BasicText: ComposeNodeFactory<ComposeGeneratedBasicTextProps>;
   DisableSelection: ComposeNodeFactory<ComposeGeneratedDisableSelectionProps>;

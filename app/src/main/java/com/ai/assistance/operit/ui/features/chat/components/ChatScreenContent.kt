@@ -119,6 +119,7 @@ fun ChatScreenContent(
         chatHeaderPipIconColor: Int?,
         chatHeaderOverlayMode: Boolean,
         chatStyle: ChatStyle, // Add chatStyle parameter
+        cursorUserBubbleLiquidGlass: Boolean = false,
         historyListState: LazyListState,
         onSwitchCharacter: (CharacterSelectorTarget) -> Unit,
         chatAreaHorizontalPadding: Float = 16f, // 聊天区域水平内边距
@@ -328,6 +329,7 @@ fun ChatScreenContent(
                         onMentionRoleFromAvatar = { roleName -> actualViewModel.insertRoleMention(roleName) },
                         topPadding = headerHeight,
                         chatStyle = chatStyle, // Pass chat style
+                        cursorUserBubbleLiquidGlass = cursorUserBubbleLiquidGlass,
                         isMultiSelectMode = isMultiSelectMode,
                         selectedMessageIndices = selectedMessageIndices,
                         onToggleMultiSelectMode = { initialIndex ->
@@ -406,6 +408,7 @@ fun ChatScreenContent(
                         onAutoReadMessage = { content -> actualViewModel.enableAutoReadAndSpeak(content) }, // 添加自动朗读回调
                         onMentionRoleFromAvatar = { roleName -> actualViewModel.insertRoleMention(roleName) },
                         chatStyle = chatStyle, // Pass chat style
+                        cursorUserBubbleLiquidGlass = cursorUserBubbleLiquidGlass,
                         isMultiSelectMode = isMultiSelectMode,
                         selectedMessageIndices = selectedMessageIndices,
                         horizontalPadding = chatAreaHorizontalPadding.dp,

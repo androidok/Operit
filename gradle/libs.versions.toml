@@ -1,19 +1,19 @@
  [versions]
-agp = "8.13.1"
-kotlin = "1.9.22"
-kotlin-serialization = "1.9.22"
+agp = "8.13.2"
+kotlin = "2.2.0"
+kotlin-serialization = "2.2.0"
 coreKtx = "1.12.0"
 junit = "4.13.2"
 junitVersion = "1.1.5"
 espressoCore = "3.5.1"
 appcompat = "1.6.1"
 material = "1.10.0"
-compose-bom = "2024.02.01"
+compose-bom = "2026.02.01"
 activity-compose = "1.8.2"
 lifecycle-runtime-ktx = "2.7.0"
-uiGraphicsAndroid = "1.6.0"
+uiGraphicsAndroid = "1.10.4"
 coreKtxVersion = "1.12.0"
-runtimeAndroid = "1.6.2"
+runtimeAndroid = "1.10.4"
 desugar = "2.0.4"
 mlkit-text = "16.0.0"
 zxing = "3.5.3"
@@ -45,7 +45,7 @@ hjson = "3.0.0"
 jieba = "1.0.2"
 hnswlib = "0.0.46"
 tensorflow = "2.10.0"
-room = "2.6.1"
+room = "2.8.4"
 commons-compress-v2 = "1.24.0"
 junrar = "7.5.5"
 navigation-compose = "2.7.7"
@@ -57,6 +57,7 @@ poi = "5.2.3"
 kotlin-logging = "5.1.0"
 slf4j = "2.0.9"
 colorpicker = "1.0.6"
+backdrop = "1.0.6"
 nanohttpd = "2.3.1"
 test-runner = "1.5.2"
 test-rules = "1.5.0"
@@ -66,16 +67,16 @@ mockito = "5.2.0"
 mockito-kotlin = "5.1.0"
 reorderable = "2.5.1"
 swipe = "1.2.0"
-objectbox = "3.8.0"
+objectbox = "5.3.0"
 mediapipe = "0.10.11"
 work = "2.9.0"
-uiTextAndroid = "1.6.2"
-animationAndroid = "1.6.2"
-uiAndroid = "1.6.2"
+uiTextAndroid = "1.10.4"
+animationAndroid = "1.10.4"
+uiAndroid = "1.10.4"
 glance = "1.0.0"
 activityKtx = "1.7.1"
- ui = "1.10.1"
- animation = "1.10.1"
+ ui = "1.10.4"
+ animation = "1.10.4"
 
  [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -212,6 +213,7 @@ slf4j-simple = { group = "org.slf4j", name = "slf4j-simple", version.ref = "slf4
 
 # UI components
 colorpicker = { group = "com.github.skydoves", name = "colorpicker-compose", version.ref = "colorpicker" }
+backdrop = { group = "io.github.kyant0", name = "backdrop", version.ref = "backdrop" }
 nanohttpd = { group = "org.nanohttpd", name = "nanohttpd", version.ref = "nanohttpd" }
 
 # Testing
@@ -255,6 +257,7 @@ glance-material3 = { group = "androidx.glance", name = "glance-material3", versi
 android-application = { id = "com.android.application", version.ref = "agp" }
 android-library = { id = "com.android.library", version.ref = "agp" }
 kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
+kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin-serialization" }
 objectbox = { id = "io.objectbox", version.ref = "objectbox" }
 kotlin-kapt = { id = "org.jetbrains.kotlin.kapt", version.ref = "kotlin" }

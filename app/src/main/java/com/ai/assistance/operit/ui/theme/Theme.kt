@@ -25,6 +25,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
@@ -58,6 +59,8 @@ import kotlinx.coroutines.launch
 import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import com.kyant.backdrop.backdrops.layerBackdrop
+import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 
 private val DarkColorScheme =
         darkColorScheme(primary = Purple80, secondary = PurpleGrey80, tertiary = Pink80)
@@ -344,163 +347,150 @@ fun OperitTheme(content: @Composable () -> Unit) {
 
     // 应用主题和自定义背景
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-        // First, create a solid barrier background to prevent system theme colors from showing
-        // through
-        Box(
-                modifier =
-                        Modifier.fillMaxSize()
-                                .background(
-                                        if (darkTheme) Color.Black else Color.White
-                                ) // Solid barrier background
-        )
+        val liquidGlassBackdrop = rememberLayerBackdrop()
 
-        // 如果使用背景图片且URI不为空，则显示背景图片
-        if (useBackgroundImage && backgroundImageUri != null) {
-            Box(modifier = Modifier.fillMaxSize()) {
-                val uri = Uri.parse(backgroundImageUri)
-                val coroutineScope = rememberCoroutineScope()
+        CompositionLocalProvider(LocalLiquidGlassBackdrop provides liquidGlassBackdrop) {
+            Box(
+                modifier = Modifier.fillMaxSize().layerBackdrop(liquidGlassBackdrop)
+            ) {
+                Box(
+                    modifier =
+                        Modifier
+                            .fillMaxSize()
+                            .background(if (darkTheme) Color.Black else Color.White)
+                )
 
-                // 根据媒体类型显示不同的背景
-                if (backgroundMediaType == UserPreferencesManager.MEDIA_TYPE_IMAGE) {
-                    // 显示背景图片
-                    val painter =
+                if (useBackgroundImage && backgroundImageUri != null) {
+                    val uri = Uri.parse(backgroundImageUri)
+                    val coroutineScope = rememberCoroutineScope()
+
+                    if (backgroundMediaType == UserPreferencesManager.MEDIA_TYPE_IMAGE) {
+                        val painter =
                             rememberAsyncImagePainter(
-                                    model = uri,
-                                    error =
-                                            rememberAsyncImagePainter(
-                                                    if (darkTheme) Color.Black
-                                                    else Color.White // Use solid colors for
-                                                    // error fallback
-                                                    )
+                                model = uri,
+                                error =
+                                    rememberAsyncImagePainter(
+                                        if (darkTheme) Color.Black else Color.White
+                                    ),
                             )
 
-                    // 监听图片加载失败时的逻辑
-                    LaunchedEffect(painter) {
-                        if (painter.state is AsyncImagePainter.State.Error) {
-                            AppLogger.e(
+                        LaunchedEffect(painter) {
+                            if (painter.state is AsyncImagePainter.State.Error) {
+                                AppLogger.e(
                                     "OperitTheme",
-                                    "Error loading background image from URI: $backgroundImageUri"
-                            )
+                                    "Error loading background image from URI: $backgroundImageUri",
+                                )
 
-                            // Check if it's a file:// URI pointing to our internal storage
-                            if (uri.scheme == "file") {
-                                val file = uri.path?.let { File(it) }
-                                if (file == null || !file.exists()) {
-                                    AppLogger.e(
+                                if (uri.scheme == "file") {
+                                    val file = uri.path?.let { File(it) }
+                                    if (file == null || !file.exists()) {
+                                        AppLogger.e(
                                             "OperitTheme",
-                                            "Internal file doesn't exist: ${file?.absolutePath}"
-                                    )
-                                } else {
-                                    AppLogger.e(
+                                            "Internal file doesn't exist: ${file?.absolutePath}",
+                                        )
+                                    } else {
+                                        AppLogger.e(
                                             "OperitTheme",
-                                            "File exists but couldn't be loaded: ${file.absolutePath}, size: ${file.length()}"
-                                    )
+                                            "File exists but couldn't be loaded: ${file.absolutePath}, size: ${file.length()}",
+                                        )
+                                    }
+                                }
+
+                                coroutineScope.launch {
+                                    preferencesManager.saveThemeSettings(useBackgroundImage = false)
                                 }
                             }
-
-                            coroutineScope.launch {
-                                preferencesManager.saveThemeSettings(useBackgroundImage = false)
-                            }
                         }
-                    }
 
-                    // 显示背景图片
-                    Image(
+                        Image(
                             painter = painter,
                             contentDescription = "Background Image",
                             modifier =
-                                    Modifier.fillMaxSize()
-                                            .alpha(backgroundImageOpacity) // 使用设置的不透明度
-                                            .then(
-                                                    if (useBackgroundBlur)
-                                                            Modifier.blur(radius = backgroundBlurRadius.dp)
-                                                    else Modifier
-                                            ),
-                            contentScale = ContentScale.Crop
-                    )
-                } else {
-                    // 显示背景视频
-                    exoPlayer?.let { player ->
-                        AndroidView(
+                                Modifier.fillMaxSize()
+                                    .alpha(backgroundImageOpacity)
+                                    .then(
+                                        if (useBackgroundBlur) {
+                                            Modifier.blur(radius = backgroundBlurRadius.dp)
+                                        } else {
+                                            Modifier
+                                        }
+                                    ),
+                            contentScale = ContentScale.Crop,
+                        )
+                    } else {
+                        exoPlayer?.let { player ->
+                            AndroidView(
                                 factory = { ctx ->
                                     StyledPlayerView(ctx).apply {
                                         this.player = player
                                         useController = false
                                         layoutParams =
-                                                ViewGroup.LayoutParams(MATCH_PARENT, MATCH_PARENT)
-                                        // Set scale type to fill the view without distortion
+                                            ViewGroup.LayoutParams(MATCH_PARENT, MATCH_PARENT)
                                         resizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM
-                                        // Apply background color matching the current theme
                                         setBackgroundColor(
-                                                if (darkTheme) android.graphics.Color.BLACK
-                                                else android.graphics.Color.WHITE
+                                            if (darkTheme) android.graphics.Color.BLACK
+                                            else android.graphics.Color.WHITE,
                                         )
-                                        // Create a semi-transparent overlay to control opacity
                                         foreground =
-                                                android.graphics.drawable.ColorDrawable(
-                                                        android.graphics.Color.argb(
-                                                                ((1f - backgroundImageOpacity) *
-                                                                                255)
-                                                                        .toInt(),
-                                                                if (darkTheme) 0 else 255, // R: Black(0) or White(255)
-                                                                if (darkTheme) 0 else 255, // G: Black(0) or White(255)
-                                                                if (darkTheme) 0 else 255  // B: Black(0) or White(255)
-                                                        )
+                                            android.graphics.drawable.ColorDrawable(
+                                                android.graphics.Color.argb(
+                                                    ((1f - backgroundImageOpacity) * 255).toInt(),
+                                                    if (darkTheme) 0 else 255,
+                                                    if (darkTheme) 0 else 255,
+                                                    if (darkTheme) 0 else 255,
                                                 )
+                                            )
                                     }
                                 },
                                 update = { view ->
-                                    // Update player reference if needed
                                     if (view.player != player) {
                                         view.player = player
                                     }
 
-                                    // Update the foreground transparency when opacity changes
                                     view.foreground =
-                                            android.graphics.drawable.ColorDrawable(
-                                                    android.graphics.Color.argb(
-                                                            ((1f - backgroundImageOpacity) * 255)
-                                                                    .toInt(),
-                                                            if (darkTheme) 0 else 255, // R: Black(0) or White(255)
-                                                            if (darkTheme) 0 else 255, // G: Black(0) or White(255)
-                                                            if (darkTheme) 0 else 255  // B: Black(0) or White(255)
-                                                    )
+                                        android.graphics.drawable.ColorDrawable(
+                                            android.graphics.Color.argb(
+                                                ((1f - backgroundImageOpacity) * 255).toInt(),
+                                                if (darkTheme) 0 else 255,
+                                                if (darkTheme) 0 else 255,
+                                                if (darkTheme) 0 else 255,
                                             )
+                                        )
                                 },
-                                modifier = Modifier.fillMaxSize()
-                        )
+                                modifier = Modifier.fillMaxSize(),
+                            )
+                        }
                     }
                 }
+            }
 
-                // 内容层 - Make sure it's not transparent
+            if (useBackgroundImage && backgroundImageUri != null) {
                 MaterialTheme(
-                        colorScheme =
-                                colorScheme.copy(
-                                        // Make surfaces more opaque
-                                        surface = colorScheme.surface.copy(alpha = 1f),
-                                        surfaceVariant =
-                                                colorScheme.surfaceVariant.copy(alpha = 1f),
-                                        background = colorScheme.background.copy(alpha = 1f),
-                                        surfaceContainer =
-                                                colorScheme.surfaceContainer.copy(alpha = 1f),
-                                        surfaceContainerHigh =
-                                                colorScheme.surfaceContainerHigh.copy(alpha = 1f),
-                                        surfaceContainerHighest =
-                                                colorScheme.surfaceContainerHighest.copy(
-                                                        alpha = 1f
-                                                ),
-                                        surfaceContainerLow =
-                                                colorScheme.surfaceContainerLow.copy(alpha = 1f),
-                                        surfaceContainerLowest =
-                                                colorScheme.surfaceContainerLowest.copy(alpha = 1f)
-                                ),
-                        typography = customTypography,
-                        content = content
+                    colorScheme =
+                        colorScheme.copy(
+                            surface = colorScheme.surface.copy(alpha = 1f),
+                            surfaceVariant = colorScheme.surfaceVariant.copy(alpha = 1f),
+                            background = colorScheme.background.copy(alpha = 1f),
+                            surfaceContainer = colorScheme.surfaceContainer.copy(alpha = 1f),
+                            surfaceContainerHigh =
+                                colorScheme.surfaceContainerHigh.copy(alpha = 1f),
+                            surfaceContainerHighest =
+                                colorScheme.surfaceContainerHighest.copy(alpha = 1f),
+                            surfaceContainerLow =
+                                colorScheme.surfaceContainerLow.copy(alpha = 1f),
+                            surfaceContainerLowest =
+                                colorScheme.surfaceContainerLowest.copy(alpha = 1f),
+                        ),
+                    typography = customTypography,
+                    content = content,
+                )
+            } else {
+                MaterialTheme(
+                    colorScheme = colorScheme,
+                    typography = customTypography,
+                    content = content,
                 )
             }
-        } else {
-            // 不使用背景图片时，直接应用主题
-            MaterialTheme(colorScheme = colorScheme, typography = customTypography, content = content)
         }
     }
 }

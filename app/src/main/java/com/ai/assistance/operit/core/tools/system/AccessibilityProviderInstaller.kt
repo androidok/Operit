@@ -62,8 +62,9 @@ class AccessibilityProviderInstaller {
                     @Suppress("DEPRECATION")
                     packageManager.getPackageInfo(ACCESSIBILITY_PACKAGE_NAME, 0)
                 }
-                cachedInstalledVersion = packageInfo.versionName
-                return packageInfo.versionName
+                val versionName = packageInfo.versionName
+                cachedInstalledVersion = versionName
+                return versionName
             } catch (e: PackageManager.NameNotFoundException) {
                 cachedInstalledVersion = null
                 return null

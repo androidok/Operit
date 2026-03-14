@@ -66,6 +66,8 @@ import com.ai.assistance.operit.data.model.ChatMessage
 import com.ai.assistance.operit.ui.features.chat.components.attachments.AttachmentViewerDialog
 import com.ai.assistance.operit.ui.features.chat.components.attachments.ChatAttachment
 import com.ai.assistance.operit.api.chat.llmprovider.MediaLinkParser
+import com.ai.assistance.operit.ui.theme.isLiquidGlassSupported
+import com.ai.assistance.operit.ui.theme.liquidGlass
 import com.ai.assistance.operit.util.ImageBitmapLimiter
 import com.ai.assistance.operit.util.ImagePoolManager
 import com.ai.assistance.operit.util.ChatMarkupRegex
@@ -80,7 +82,12 @@ import kotlinx.coroutines.withContext
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun UserMessageComposable(message: ChatMessage, backgroundColor: Color, textColor: Color) {
+fun UserMessageComposable(
+    message: ChatMessage,
+    backgroundColor: Color,
+    textColor: Color,
+    enableLiquidGlass: Boolean = false,
+) {
     val context = LocalContext.current
     val clipboardManager = LocalClipboardManager.current
     val haptic = LocalHapticFeedback.current
@@ -207,11 +214,26 @@ fun UserMessageComposable(message: ChatMessage, backgroundColor: Color, textColo
             }
         }
 
+        val liquidGlassEnabled = enableLiquidGlass && isLiquidGlassSupported()
+
         // Message bubble
         Card(
             modifier =
-            Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = effectiveBackgroundColor),
+            Modifier
+                .fillMaxWidth()
+                .liquidGlass(
+                    enabled = liquidGlassEnabled,
+                    shape = RoundedCornerShape(8.dp),
+                    containerColor = effectiveBackgroundColor,
+                    shadowElevation = 10.dp,
+                    borderWidth = 0.28.dp,
+                    blurRadius = 28.dp,
+                    overlayAlphaBoost = 0.10f,
+                    enableLens = false,
+                ),
+            colors = CardDefaults.cardColors(
+                containerColor = if (liquidGlassEnabled) Color.Transparent else effectiveBackgroundColor,
+            ),
             shape = RoundedCornerShape(8.dp)
         ) {
             Column(modifier = Modifier

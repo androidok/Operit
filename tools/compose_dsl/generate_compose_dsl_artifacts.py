@@ -46,6 +46,7 @@ COMPONENTS: Tuple[ComponentSpec, ...] = (
     ComponentSpec("Button", "material3", "androidx.compose.material3", "Button", ("onClick", "modifier", "enabled", "shape", "content")),
     ComponentSpec("IconButton", "material3", "androidx.compose.material3", "IconButton", ("onClick", "modifier", "enabled", "content")),
     ComponentSpec("Card", "material3", "androidx.compose.material3", "Card", ("modifier", "shape", "colors", "elevation", "border", "content")),
+    ComponentSpec("MaterialTheme", "material3", "androidx.compose.material3", "MaterialTheme", ("colorScheme", "shapes", "typography", "content")),
     ComponentSpec("Surface", "material3", "androidx.compose.material3", "Surface", ("modifier", "shape", "color", "contentColor", "content")),
     ComponentSpec("Icon", "material3", "androidx.compose.material3", "Icon", ("imageVector", "contentDescription", "modifier", "tint")),
     ComponentSpec("LinearProgressIndicator", "material3", "androidx.compose.material3", "LinearProgressIndicator", ("progress", "modifier", "color")),
@@ -91,7 +92,7 @@ def parse_composable_signatures(source_text: str, function_name: str) -> List[Li
 
     for match in fun_pattern.finditer(source_text):
         start = match.start()
-        if "@Composable" not in source_text[max(0, start - 600):start]:
+        if not has_attached_annotation(source_text, start, "Composable"):
             continue
 
         open_paren = source_text.find("(", start)
@@ -181,6 +182,56 @@ def parse_params(raw_params: str) -> List[Param]:
         parsed.append(Param(name=name, type=type_part, has_default=has_default))
 
     return parsed
+
+
+def extract_attached_annotation_lines(source_text: str, fun_start: int) -> List[str]:
+    annotations: List[str] = []
+    cursor = source_text.rfind("\n", 0, fun_start) + 1
+
+    while cursor > 0:
+        previous_line_end = cursor - 1
+        if previous_line_end < 0:
+            break
+        previous_line_start = source_text.rfind("\n", 0, previous_line_end) + 1
+        line = source_text[previous_line_start:previous_line_end].strip()
+        if not line:
+            break
+        if not line.startswith("@"):
+            break
+        annotations.append(line)
+        cursor = previous_line_start
+
+    annotations.reverse()
+    return annotations
+
+
+def has_attached_annotation(source_text: str, fun_start: int, annotation_name: str) -> bool:
+    token = f"@{annotation_name}"
+    for line in extract_attached_annotation_lines(source_text, fun_start):
+        if line.startswith(token) or token in line:
+            return True
+    return False
+
+
+def has_attached_experimental_annotation(source_text: str, fun_start: int) -> bool:
+    for line in extract_attached_annotation_lines(source_text, fun_start):
+        if (
+            "ExperimentalMaterial3Api" in line
+            or "ExperimentalMaterial3ExpressiveApi" in line
+            or "ExperimentalFoundationApi" in line
+            or re.search(r"@OptIn\([^)]*Experimental", line) is not None
+        ):
+            return True
+    return False
+
+
+def has_explicit_non_unit_return_type(source_text: str, close_paren: int) -> bool:
+    tail = source_text[close_paren + 1:close_paren + 300]
+    match = re.match(r"\s*:\s*([^={]+?)\s*(?:=|\{)", tail, re.DOTALL)
+    if match is None:
+        return False
+    return_type = " ".join(match.group(1).split()).rstrip("?")
+    return return_type not in {"Unit", "kotlin.Unit"}
 
 
 def choose_overload(spec: ComponentSpec, overloads: Sequence[List[Param]]) -> List[Param]:
@@ -458,7 +509,7 @@ def discover_additional_components(
                         continue
 
                     start = match.start()
-                    if "@Composable" not in text[max(0, start - 700):start]:
+                    if not has_attached_annotation(text, start, "Composable"):
                         continue
 
                     line_start = text.rfind("\n", 0, start) + 1
@@ -467,12 +518,27 @@ def discover_additional_components(
                         continue
                     if re.search(r"\b(private|internal)\b", declaration):
                         continue
-                    annotation_window = text[max(0, start - 500):start]
-                    if (
-                        "ExperimentalMaterial3Api" in annotation_window
-                        or "ExperimentalFoundationApi" in annotation_window
-                        or re.search(r"@OptIn\([^)]*Experimental", annotation_window) is not None
-                    ):
+                    open_paren = text.find("(", start)
+                    if open_paren < 0:
+                        continue
+                    depth = 0
+                    close_paren = -1
+                    i = open_paren
+                    while i < len(text):
+                        ch = text[i]
+                        if ch == "(":
+                            depth += 1
+                        elif ch == ")":
+                            depth -= 1
+                            if depth == 0:
+                                close_paren = i
+                                break
+                        i += 1
+                    if close_paren < 0:
+                        continue
+                    if has_attached_experimental_annotation(text, start):
+                        continue
+                    if has_explicit_non_unit_return_type(text, close_paren):
                         continue
 
                     function_names.add(name)
@@ -522,6 +588,7 @@ RENDERER_REQUIRED_PARAMS: Dict[str, Tuple[str, ...]] = {
     "Button": ("onClick", "modifier", "enabled", "content"),
     "IconButton": ("onClick", "modifier", "enabled", "content"),
     "Card": ("modifier", "shape", "elevation", "border", "content"),
+    "MaterialTheme": ("content",),
     "Surface": ("modifier", "shape", "content"),
     "Icon": ("imageVector", "modifier"),
     "LinearProgressIndicator": ("modifier",),
@@ -646,9 +713,28 @@ def build_component_renderer_function(spec: ComponentSpec, params: Sequence[Para
             ) {
                 val props = node.props
                 val spacing = props.dp("spacing")
+                val reverseLayout = props.bool("reverseLayout", false)
+                val autoScrollToEnd = props.bool("autoScrollToEnd", false)
+                val listState = rememberLazyListState()
+                val autoScrollSignature =
+                    if (!autoScrollToEnd) {
+                        0
+                    } else {
+                        node.children.fold(1) { acc, child -> 31 * acc + child.autoScrollSignature() }
+                    }
+
+                LaunchedEffect(nodePath, autoScrollToEnd, reverseLayout, autoScrollSignature) {
+                    if (autoScrollToEnd && node.children.isNotEmpty()) {
+                        listState.scrollToItem(if (reverseLayout) 0 else node.children.lastIndex)
+                    }
+                }
+
                 LazyColumn(
+                    state = listState,
                     modifier = applyCommonModifier(Modifier.fillMaxSize(), props),
-                    verticalArrangement = Arrangement.spacedBy(spacing),
+                    horizontalAlignment = props.horizontalAlignment("horizontalAlignment"),
+                    reverseLayout = reverseLayout,
+                    verticalArrangement = props.verticalArrangement("verticalArrangement", spacing),
                     contentPadding = PaddingValues(0.dp)
                 ) {
                     itemsIndexed(node.children) { index, child ->
@@ -1375,6 +1461,7 @@ def build_ts_generated_file(
 
         if component == "LazyColumn":
             emitted.setdefault("spacing", ("number", False))
+            emitted.setdefault("autoScrollToEnd", ("boolean", False))
 
         for prop_name in sorted(emitted.keys()):
             ts_type, required = emitted[prop_name]

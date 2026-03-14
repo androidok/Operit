@@ -139,6 +139,8 @@ import com.ai.assistance.operit.ui.features.chat.components.style.input.common.T
 import com.ai.assistance.operit.ui.features.chat.viewmodel.ChatViewModel
 import com.ai.assistance.operit.ui.floating.FloatingMode
 import com.ai.assistance.operit.ui.permissions.PermissionLevel
+import com.ai.assistance.operit.ui.theme.isLiquidGlassSupported
+import com.ai.assistance.operit.ui.theme.liquidGlass
 import com.ai.assistance.operit.util.ChatUtils
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -166,6 +168,7 @@ fun AgentChatInputSection(
     onTakePhoto: (Uri) -> Unit,
     hasBackgroundImage: Boolean = false,
     chatInputTransparent: Boolean = false,
+    chatInputLiquidGlass: Boolean = false,
     modifier: Modifier = Modifier,
     externalAttachmentPanelState: Boolean? = null,
     onAttachmentPanelStateChange: ((Boolean) -> Unit)? = null,
@@ -653,6 +656,14 @@ fun AgentChatInputSection(
             }
 
             val inputCardShape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp)
+            val inputLiquidGlassEnabled =
+                chatInputTransparent && chatInputLiquidGlass && isLiquidGlassSupported()
+            val inputLiquidGlassTint =
+                if (isDarkTheme) {
+                    darkModeInputColor
+                } else {
+                    MaterialTheme.colorScheme.surface
+                }
             val inputContainerEffectModifier =
                 if (isDarkTheme) {
                     Modifier.topEdgeHighlight(
@@ -676,8 +687,23 @@ fun AgentChatInputSection(
                             .fillMaxWidth()
                             .padding(top = 4.dp)
                             .then(inputContainerEffectModifier)
+                            .liquidGlass(
+                                enabled = inputLiquidGlassEnabled,
+                                shape = inputCardShape,
+                                containerColor = inputLiquidGlassTint,
+                                shadowElevation = 18.dp,
+                                borderWidth = 0.42.dp,
+                                blurRadius = 20.dp,
+                                overlayAlphaBoost = 0.10f,
+                            )
                             .clip(inputCardShape)
-                            .background(inputContainerColor),
+                            .background(
+                                if (inputLiquidGlassEnabled) {
+                                    Color.Transparent
+                                } else {
+                                    inputContainerColor
+                                }
+                            ),
                 ) {
                 Column(
                     modifier =
@@ -950,8 +976,23 @@ fun AgentChatInputSection(
                             .fillMaxWidth()
                             .padding(top = 4.dp)
                             .then(inputContainerEffectModifier)
+                            .liquidGlass(
+                                enabled = inputLiquidGlassEnabled,
+                                shape = inputCardShape,
+                                containerColor = inputLiquidGlassTint,
+                                shadowElevation = 18.dp,
+                                borderWidth = 0.42.dp,
+                                blurRadius = 20.dp,
+                                overlayAlphaBoost = 0.10f,
+                            )
                             .clip(inputCardShape)
-                            .background(inputContainerColor),
+                            .background(
+                                if (inputLiquidGlassEnabled) {
+                                    Color.Transparent
+                                } else {
+                                    inputContainerColor
+                                }
+                            ),
                 ) {
                     Column(
                         modifier =

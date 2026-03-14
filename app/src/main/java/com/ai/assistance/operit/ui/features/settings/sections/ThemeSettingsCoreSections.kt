@@ -251,6 +251,8 @@ internal fun ThemeSettingsChatStyleSection(
     onBubbleWideLayoutEnabledInputChange: (Boolean) -> Unit,
     cursorUserBubbleFollowThemeInput: Boolean,
     onCursorUserBubbleFollowThemeInputChange: (Boolean) -> Unit,
+    cursorUserBubbleLiquidGlassInput: Boolean,
+    onCursorUserBubbleLiquidGlassInputChange: (Boolean) -> Unit,
     cursorUserBubbleColorInput: Int,
     bubbleUserBubbleColorInput: Int,
     bubbleAiBubbleColorInput: Int,
@@ -446,6 +448,43 @@ internal fun ThemeSettingsChatStyleSection(
                             saveThemeSettingsWithCharacterCard {
                                 preferencesManager.saveThemeSettings(
                                     cursorUserBubbleFollowTheme = it,
+                                )
+                            }
+                        },
+                    )
+                }
+
+                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text =
+                                stringResource(
+                                    id = R.string.chat_style_cursor_user_bubble_liquid_glass
+                                ),
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                        Text(
+                            text =
+                                stringResource(
+                                    id = R.string.chat_style_cursor_user_bubble_liquid_glass_desc
+                                ),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Switch(
+                        checked = cursorUserBubbleLiquidGlassInput,
+                        onCheckedChange = {
+                            onCursorUserBubbleLiquidGlassInputChange(it)
+                            saveThemeSettingsWithCharacterCard {
+                                preferencesManager.saveThemeSettings(
+                                    cursorUserBubbleLiquidGlass = it,
                                 )
                             }
                         },

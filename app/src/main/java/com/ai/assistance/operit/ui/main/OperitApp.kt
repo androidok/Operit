@@ -123,7 +123,7 @@ fun OperitApp(initialNavItem: NavItem = NavItem.AiChat, toolHandler: AIToolHandl
             // 设置为返回导航
             isNavigatingBack = true
 
-            val previousScreen = backStack.removeLast()
+            val previousScreen = backStack.removeAt(backStack.lastIndex)
             currentScreen = previousScreen
             // Update the selected NavItem if the previous screen has one.
             previousScreen.navItem?.let { navItem -> selectedItem = navItem }

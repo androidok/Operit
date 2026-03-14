@@ -172,9 +172,10 @@ class ShizukuInstaller {
                     @Suppress("DEPRECATION")
                     packageManager.getPackageInfo(SHIZUKU_PACKAGE_NAME, 0)
                 }
-                AppLogger.i(TAG, "获取已安装Shizuku版本: ${packageInfo.versionName}")
-                cachedInstalledVersion = packageInfo.versionName
-                return packageInfo.versionName
+                val versionName = packageInfo.versionName
+                AppLogger.i(TAG, "获取已安装Shizuku版本: $versionName")
+                cachedInstalledVersion = versionName
+                return versionName
             } catch (e: PackageManager.NameNotFoundException) {
                 // 未安装Shizuku
                 AppLogger.i(TAG, "未检测到已安装的Shizuku")

@@ -21,9 +21,9 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.SmallTopAppBar
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -167,7 +167,6 @@ fun AppContent(
             } else {
                 ""
             }
-
     // 屏幕缓存 Map - 保存已访问过的屏幕，使其状态得以保留
     val screenCache = remember { mutableStateMapOf<String, @Composable () -> Unit>() }
     // 使用 Screen 对象的 toString() 作为 key，这对于 data class 和 data object 都能生成一个唯一的、
@@ -193,7 +192,9 @@ fun AppContent(
         previousScreenState.value = currentScreen
     }
 
-    CompositionLocalProvider(LocalAppBarContentColor provides appBarContentColor) {
+    CompositionLocalProvider(
+        LocalAppBarContentColor provides appBarContentColor,
+    ) {
         // 使用Scaffold来正确处理顶部栏和内容的布局
         // contentWindowInsets = WindowInsets(0) 让内容可以延伸到系统栏下方，使背景能够完全填充
         Scaffold(
@@ -201,7 +202,7 @@ fun AppContent(
             topBar = {
                 // 单一工具栏 - 使用小型化的设计
                 // 使用 windowInsets 参数让 TopAppBar 自己处理状态栏的 insets
-                SmallTopAppBar(
+                TopAppBar(
                     windowInsets = WindowInsets.statusBars,
                     title = {
                         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -276,7 +277,7 @@ fun AppContent(
                     },
                     actions = actions,
                     colors =
-                    TopAppBarDefaults.smallTopAppBarColors(
+                    TopAppBarDefaults.topAppBarColors(
                         containerColor =
                         when {
                             toolbarTransparent -> Color.Transparent

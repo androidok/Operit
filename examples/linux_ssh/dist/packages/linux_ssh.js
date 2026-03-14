@@ -38,16 +38,6 @@
             "required": false
         },
         {
-            "name": "LINUX_SSH_TMUX_SESSION",
-            "description": { "zh": "默认 tmux 会话名，默认 operit_ai", "en": "Default tmux session name, default operit_ai" },
-            "required": false
-        },
-        {
-            "name": "LINUX_SSH_LOCAL_TERMINAL_SESSION",
-            "description": { "zh": "本地 terminal 会话名，默认 linux_ssh_default_session", "en": "Local terminal session name, default linux_ssh_default_session" },
-            "required": false
-        },
-        {
             "name": "LINUX_SSH_TIMEOUT_MS",
             "description": { "zh": "默认命令超时毫秒，默认 20000", "en": "Default timeout in ms, default 20000" },
             "required": false
@@ -75,8 +65,6 @@
                 { "name": "username", "description": { "zh": "用户名", "en": "Username" }, "type": "string", "required": false },
                 { "name": "password", "description": { "zh": "密码（可选）", "en": "Password (optional)" }, "type": "string", "required": false },
                 { "name": "private_key_path", "description": { "zh": "私钥路径（可选）", "en": "Private key path (optional)" }, "type": "string", "required": false },
-                { "name": "tmux_session_name", "description": { "zh": "默认 tmux 会话名（可选）", "en": "Default tmux session name (optional)" }, "type": "string", "required": false },
-                { "name": "local_session_name", "description": { "zh": "本地 terminal 会话名（可选）", "en": "Local terminal session name (optional)" }, "type": "string", "required": false },
                 { "name": "timeout_ms", "description": { "zh": "默认超时毫秒（可选）", "en": "Default timeout ms (optional)" }, "type": "number", "required": false },
                 { "name": "test_connection", "description": { "zh": "是否立即测试连接", "en": "Whether to test connection immediately" }, "type": "boolean", "required": false }
             ]
@@ -107,15 +95,13 @@
             "parameters": [
                 { "name": "command", "description": { "zh": "要执行的长任务命令", "en": "Long-running command" }, "type": "string", "required": true },
                 { "name": "workdir", "description": { "zh": "远程工作目录（可选）", "en": "Remote working directory (optional)" }, "type": "string", "required": false },
-                { "name": "tmux_session_name", "description": { "zh": "tmux 会话名（可选）", "en": "tmux session name (optional)" }, "type": "string", "required": false },
-                { "name": "window_name", "description": { "zh": "tmux 窗口名（可选）", "en": "tmux window name (optional)" }, "type": "string", "required": false }
+                { "name": "window_name", "description": { "zh": "tmux 窗口名（可选，不传则自动创建 task-N）", "en": "tmux window name (optional, auto-create task-N when omitted)" }, "type": "string", "required": false }
             ]
         },
         {
             "name": "linux_ssh_tmux_capture",
             "description": { "zh": "抓取远程 tmux 会话窗口输出。", "en": "Capture output from remote tmux session/window." },
             "parameters": [
-                { "name": "tmux_session_name", "description": { "zh": "tmux 会话名（可选）", "en": "tmux session name (optional)" }, "type": "string", "required": false },
                 { "name": "window_name", "description": { "zh": "tmux 窗口名（可选）", "en": "tmux window name (optional)" }, "type": "string", "required": false },
                 { "name": "max_lines", "description": { "zh": "最多抓取行数，默认 200", "en": "Max lines, default 200" }, "type": "number", "required": false }
             ]
@@ -123,16 +109,22 @@
         {
             "name": "linux_ssh_tmux_list_windows",
             "description": { "zh": "列出远程 tmux 会话中的窗口列表。", "en": "List windows in a remote tmux session." },
+            "parameters": []
+        },
+        {
+            "name": "linux_ssh_tmux_input",
+            "description": { "zh": "向远程 tmux 指定窗口发送文本或控制键。", "en": "Send text or control keys into a remote tmux window." },
             "parameters": [
-                { "name": "tmux_session_name", "description": { "zh": "tmux 会话名（可选）", "en": "tmux session name (optional)" }, "type": "string", "required": false }
+                { "name": "window_name", "description": { "zh": "tmux 窗口名", "en": "tmux window name" }, "type": "string", "required": true },
+                { "name": "input", "description": { "zh": "文本输入（可选）", "en": "Input text (optional)" }, "type": "string", "required": false },
+                { "name": "control", "description": { "zh": "控制键（如 enter/tab/ctrl+c）", "en": "Control key (e.g. enter/tab/ctrl+c)" }, "type": "string", "required": false }
             ]
         },
         {
-            "name": "linux_ssh_terminal_open",
-            "description": { "zh": "打开一个可持续交互的 SSH 终端会话。", "en": "Open a persistent interactive SSH terminal session." },
+            "name": "linux_ssh_tmux_close",
+            "description": { "zh": "关闭远程 tmux 指定窗口。", "en": "Close a remote tmux window." },
             "parameters": [
-                { "name": "local_session_name", "description": { "zh": "本地 terminal 会话名（可选）", "en": "Local terminal session name (optional)" }, "type": "string", "required": false },
-                { "name": "timeout_ms", "description": { "zh": "打开动作超时毫秒（可选，默认 3000）", "en": "Open timeout in ms (optional, default 3000)" }, "type": "number", "required": false }
+                { "name": "window_name", "description": { "zh": "tmux 窗口名", "en": "tmux window name" }, "type": "string", "required": true }
             ]
         },
         {
@@ -140,23 +132,13 @@
             "description": { "zh": "向交互 SSH 终端输入文本或控制键。", "en": "Write text/control keys into interactive SSH terminal." },
             "parameters": [
                 { "name": "input", "description": { "zh": "文本输入（可选）", "en": "Input text (optional)" }, "type": "string", "required": false },
-                { "name": "control", "description": { "zh": "控制键（如 enter/tab/ctrl）", "en": "Control key (e.g. enter/tab/ctrl)" }, "type": "string", "required": false },
-                { "name": "local_session_name", "description": { "zh": "本地 terminal 会话名（可选）", "en": "Local terminal session name (optional)" }, "type": "string", "required": false }
+                { "name": "control", "description": { "zh": "控制键（如 enter/tab/ctrl）", "en": "Control key (e.g. enter/tab/ctrl)" }, "type": "string", "required": false }
             ]
         },
         {
             "name": "linux_ssh_terminal_screen",
             "description": { "zh": "获取交互 SSH 终端当前可见屏幕。", "en": "Get current visible screen of interactive SSH terminal." },
-            "parameters": [
-                { "name": "local_session_name", "description": { "zh": "本地 terminal 会话名（可选）", "en": "Local terminal session name (optional)" }, "type": "string", "required": false }
-            ]
-        },
-        {
-            "name": "linux_ssh_terminal_close",
-            "description": { "zh": "关闭交互 SSH 终端会话。", "en": "Close interactive SSH terminal session." },
-            "parameters": [
-                { "name": "local_session_name", "description": { "zh": "本地 terminal 会话名（可选）", "en": "Local terminal session name (optional)" }, "type": "string", "required": false }
-            ]
+            "parameters": []
         },
         {
             "name": "linux_ssh_ls",
@@ -171,7 +153,8 @@
             "parameters": [
                 { "name": "path", "description": { "zh": "文件路径", "en": "File path" }, "type": "string", "required": true },
                 { "name": "line_start", "description": { "zh": "起始行（可选）", "en": "Start line (optional)" }, "type": "number", "required": false },
-                { "name": "line_end", "description": { "zh": "结束行（可选）", "en": "End line (optional)" }, "type": "number", "required": false }
+                { "name": "line_end", "description": { "zh": "结束行（可选）", "en": "End line (optional)" }, "type": "number", "required": false },
+                { "name": "sudo", "description": { "zh": "是否使用 sudo -n 读取，默认 false", "en": "Whether to read with sudo -n, default false" }, "type": "boolean", "required": false }
             ]
         },
         {
@@ -180,7 +163,8 @@
             "parameters": [
                 { "name": "path", "description": { "zh": "文件路径", "en": "File path" }, "type": "string", "required": true },
                 { "name": "content", "description": { "zh": "写入内容", "en": "Content to write" }, "type": "string", "required": true },
-                { "name": "append", "description": { "zh": "是否追加，默认 false", "en": "Append mode, default false" }, "type": "boolean", "required": false }
+                { "name": "append", "description": { "zh": "是否追加，默认 false", "en": "Append mode, default false" }, "type": "boolean", "required": false },
+                { "name": "sudo", "description": { "zh": "是否使用 sudo -n 写入，默认 false", "en": "Whether to write with sudo -n, default false" }, "type": "boolean", "required": false }
             ]
         },
         {
@@ -190,7 +174,8 @@
                 { "name": "path", "description": { "zh": "文件路径", "en": "File path" }, "type": "string", "required": true },
                 { "name": "old_text", "description": { "zh": "旧文本", "en": "Old text" }, "type": "string", "required": true },
                 { "name": "new_text", "description": { "zh": "新文本", "en": "New text" }, "type": "string", "required": true },
-                { "name": "expected_replacements", "description": { "zh": "期望替换次数，默认 1", "en": "Expected replacements, default 1" }, "type": "number", "required": false }
+                { "name": "expected_replacements", "description": { "zh": "期望替换次数，默认 1", "en": "Expected replacements, default 1" }, "type": "number", "required": false },
+                { "name": "sudo", "description": { "zh": "是否使用 sudo -n 读取和写回，默认 false", "en": "Whether to read and write back with sudo -n, default false" }, "type": "boolean", "required": false }
             ]
         }
     ]
@@ -200,8 +185,8 @@ const linuxSshTools = (function () {
     const PACKAGE_VERSION = "0.1.0";
     const DEFAULT_PORT = 22;
     const DEFAULT_TIMEOUT_MS = 20000;
-    const DEFAULT_CONNECT_OPEN_TIMEOUT_MS = 3000;
-    const DEFAULT_LOCAL_SESSION_NAME = "linux_ssh_default_session";
+    const DEFAULT_TERMINAL_SESSION_NAME = "linux_ssh_terminal";
+    const DEFAULT_HIDDEN_EXECUTOR_NAME = "linux_ssh";
     const DEFAULT_TMUX_SESSION_NAME = "operit_ai";
     const ENV_KEYS = {
         host: "LINUX_SSH_HOST",
@@ -209,8 +194,6 @@ const linuxSshTools = (function () {
         username: "LINUX_SSH_USERNAME",
         password: "LINUX_SSH_PASSWORD",
         privateKeyPath: "LINUX_SSH_PRIVATE_KEY_PATH",
-        tmuxSessionName: "LINUX_SSH_TMUX_SESSION",
-        localSessionName: "LINUX_SSH_LOCAL_TERMINAL_SESSION",
         timeoutMs: "LINUX_SSH_TIMEOUT_MS"
     };
     function asText(value) {
@@ -310,8 +293,6 @@ const linuxSshTools = (function () {
             ["username", ENV_KEYS.username],
             ["password", ENV_KEYS.password],
             ["private_key_path", ENV_KEYS.privateKeyPath],
-            ["tmux_session_name", ENV_KEYS.tmuxSessionName],
-            ["local_session_name", ENV_KEYS.localSessionName],
             ["timeout_ms", ENV_KEYS.timeoutMs]
         ];
         const persisted = [];
@@ -340,8 +321,6 @@ const linuxSshTools = (function () {
         const privateKeyPath = firstNonBlank(allowParamAuth && params ? asText(params.private_key_path) : "", readEnv(ENV_KEYS.privateKeyPath));
         const portRaw = firstNonBlank(allowParamConnection && params ? asText(params.port) : "", readEnv(ENV_KEYS.port), String(DEFAULT_PORT));
         const timeoutRaw = firstNonBlank(params && asText(params.timeout_ms), readEnv(ENV_KEYS.timeoutMs), String(DEFAULT_TIMEOUT_MS));
-        const tmuxSessionName = firstNonBlank(params && asText(params.tmux_session_name), readEnv(ENV_KEYS.tmuxSessionName), DEFAULT_TMUX_SESSION_NAME);
-        const localSessionName = firstNonBlank(params && asText(params.local_session_name), readEnv(ENV_KEYS.localSessionName), DEFAULT_LOCAL_SESSION_NAME);
         const port = parsePositiveInt(portRaw, DEFAULT_PORT);
         const timeoutMs = parsePositiveInt(timeoutRaw, DEFAULT_TIMEOUT_MS);
         if (!host) {
@@ -361,16 +340,14 @@ const linuxSshTools = (function () {
             username,
             password,
             privateKeyPath,
-            tmuxSessionName,
-            localSessionName,
             timeoutMs
         };
     }
-    async function createLocalTerminalSession(localSessionName) {
-        return await Tools.System.terminal.create(localSessionName || DEFAULT_LOCAL_SESSION_NAME);
+    async function createLocalTerminalSession() {
+        return await Tools.System.terminal.create(DEFAULT_TERMINAL_SESSION_NAME);
     }
-    async function runLocalCommand(sessionName, command, timeoutMs) {
-        const session = await createLocalTerminalSession(sessionName);
+    async function runLocalCommand(command, timeoutMs) {
+        const session = await createLocalTerminalSession();
         const effectiveTimeout = parsePositiveInt(timeoutMs, DEFAULT_TIMEOUT_MS);
         const result = await Tools.System.terminal.exec(session.sessionId, command, effectiveTimeout);
         return {
@@ -380,16 +357,14 @@ const linuxSshTools = (function () {
             output: asText(result.output)
         };
     }
-    function buildHiddenExecutorKey(localSessionName, scope) {
-        const baseName = firstNonBlank(localSessionName, DEFAULT_LOCAL_SESSION_NAME)
-            .replace(/[^a-zA-Z0-9._-]+/g, "_");
+    function buildHiddenExecutorKey(scope) {
         const normalizedScope = firstNonBlank(scope, "default")
             .replace(/[^a-zA-Z0-9._-]+/g, "_");
-        return `linux_ssh:${baseName}:${normalizedScope}`;
+        return `${DEFAULT_HIDDEN_EXECUTOR_NAME}:${normalizedScope}`;
     }
-    async function runLocalHiddenCommand(localSessionName, command, timeoutMs, scope) {
+    async function runLocalHiddenCommand(command, timeoutMs, scope) {
         const effectiveTimeout = parsePositiveInt(timeoutMs, DEFAULT_TIMEOUT_MS);
-        const executorKey = buildHiddenExecutorKey(localSessionName, scope);
+        const executorKey = buildHiddenExecutorKey(scope);
         const result = await Tools.System.terminal.hiddenExec(command, {
             executorKey,
             timeoutMs: effectiveTimeout
@@ -402,14 +377,14 @@ const linuxSshTools = (function () {
             output: asText(result.output)
         };
     }
-    function createVisibleRunner(sessionName) {
+    function createVisibleRunner() {
         return async function execute(command, timeoutMs) {
-            return await runLocalCommand(sessionName, command, timeoutMs);
+            return await runLocalCommand(command, timeoutMs);
         };
     }
-    function createHiddenRunner(localSessionName, scope) {
+    function createHiddenRunner(scope) {
         return async function execute(command, timeoutMs) {
-            return await runLocalHiddenCommand(localSessionName, command, timeoutMs, scope);
+            return await runLocalHiddenCommand(command, timeoutMs, scope);
         };
     }
     async function ensureLocalCommand(runner, commandName, installScript) {
@@ -484,7 +459,7 @@ const linuxSshTools = (function () {
         return `${base} ${shellQuote(remoteCommand)}`;
     }
     async function runRemoteCommandHidden(config, remoteCommand, timeoutMs, scope) {
-        const runner = createHiddenRunner(config.localSessionName, scope || "remote");
+        const runner = createHiddenRunner(scope || "remote");
         await ensureLocalSshDependencies(config, runner);
         const command = buildSshCommand(config, remoteCommand, false);
         const result = await runner(command, timeoutMs || config.timeoutMs);
@@ -506,6 +481,65 @@ const linuxSshTools = (function () {
         return asText(output)
             .split(/\r?\n/)
             .some((line) => asText(line).trim() === marker);
+    }
+    function extractOutputLineValue(output, prefix) {
+        const lines = asText(output).split(/\r?\n/);
+        for (let i = 0; i < lines.length; i += 1) {
+            const line = asText(lines[i]).trim();
+            if (line.startsWith(prefix)) {
+                return line.slice(prefix.length).trim();
+            }
+        }
+        return "";
+    }
+    function normalizeTmuxControlKey(control) {
+        const raw = asText(control).trim();
+        if (!raw) {
+            return "";
+        }
+        const lower = raw.toLowerCase();
+        const aliases = {
+            enter: "Enter",
+            return: "Enter",
+            tab: "Tab",
+            escape: "Escape",
+            esc: "Escape",
+            space: "Space",
+            backspace: "BSpace",
+            bs: "BSpace",
+            delete: "Delete",
+            del: "Delete",
+            insert: "Insert",
+            up: "Up",
+            down: "Down",
+            left: "Left",
+            right: "Right",
+            home: "Home",
+            end: "End",
+            pageup: "PageUp",
+            pagedown: "PageDown"
+        };
+        if (Object.prototype.hasOwnProperty.call(aliases, lower)) {
+            return aliases[lower];
+        }
+        const ctrlMatch = lower.match(/^ctrl[+-]([a-z])$/);
+        if (ctrlMatch) {
+            return `C-${ctrlMatch[1]}`;
+        }
+        const tmuxCtrlMatch = raw.match(/^C-([a-zA-Z])$/);
+        if (tmuxCtrlMatch) {
+            return `C-${tmuxCtrlMatch[1].toLowerCase()}`;
+        }
+        const functionMatch = lower.match(/^f([1-9]|1[0-2])$/);
+        if (functionMatch) {
+            return `F${functionMatch[1]}`;
+        }
+        return raw;
+    }
+    function buildRemoteShellCommand(script, args, useSudo) {
+        const prefix = useSudo ? "sudo -n " : "";
+        const argv = Array.isArray(args) ? args.map((arg) => shellQuote(arg)).join(" ") : "";
+        return `${prefix}sh -c ${shellQuote(script)} sh${argv ? ` ${argv}` : ""}`;
     }
     async function ensureRemoteTmux(config) {
         const installScript = [
@@ -540,16 +574,51 @@ const linuxSshTools = (function () {
             output: result.output
         };
     }
-    async function readRemoteFileContent(config, path, lineStart, lineEnd) {
-        const escapedPath = shellQuote(path);
-        let readCmd = `cat ${escapedPath}`;
+    async function ensureRemoteTmuxWindow(config, requestedWindowName) {
+        const script = [
+            `session_name="${DEFAULT_TMUX_SESSION_NAME}"`,
+            "requested_window=\"$1\"",
+            "window_name=\"$requested_window\"",
+            "window_exists() {",
+            "  tmux list-windows -t \"$session_name\" -F '#{window_name}' | grep -Fx -- \"$1\" >/dev/null 2>&1",
+            "}",
+            "if [ -z \"$window_name\" ]; then",
+            "  seq=1",
+            "  while tmux has-session -t \"$session_name\" 2>/dev/null && window_exists \"task-$seq\"; do",
+            "    seq=$((seq + 1))",
+            "  done",
+            "  window_name=\"task-$seq\"",
+            "fi",
+            "if tmux has-session -t \"$session_name\" 2>/dev/null; then",
+            "  if ! window_exists \"$window_name\"; then",
+            "    tmux new-window -d -t \"$session_name\" -n \"$window_name\"",
+            "  fi",
+            "else",
+            "  tmux new-session -d -s \"$session_name\" -n \"$window_name\"",
+            "fi",
+            "printf '__OPERIT_TMUX_WINDOW_READY__\\n'",
+            "echo \"window=$window_name\""
+        ].join("\n");
+        const result = await runRemoteCommandHidden(config, buildRemoteShellCommand(script, [requestedWindowName], false), config.timeoutMs, "tmux");
+        const success = result.exitCode === 0 && !result.timedOut && result.output.includes("__OPERIT_TMUX_WINDOW_READY__");
+        const windowName = extractOutputLineValue(result.output, "window=");
+        return {
+            success,
+            windowName,
+            exitCode: result.exitCode,
+            timedOut: result.timedOut,
+            output: result.output
+        };
+    }
+    async function readRemoteFileContent(config, path, lineStart, lineEnd, useSudo) {
+        let readCmd = "cat \"$1\"";
         if (lineStart !== undefined || lineEnd !== undefined) {
             const start = lineStart === undefined ? 1 : lineStart;
             const end = lineEnd === undefined ? "$" : String(lineEnd);
-            readCmd = `sed -n '${start},${end}p' ${escapedPath}`;
+            readCmd = `sed -n '${start},${end}p' "$1"`;
         }
         const script = [
-            `if [ ! -f ${escapedPath} ]; then`,
+            "if [ ! -f \"$1\" ]; then",
             "  echo '__OPERIT_FILE_NOT_FOUND__'",
             "  exit 4",
             "fi",
@@ -557,7 +626,8 @@ const linuxSshTools = (function () {
             readCmd,
             "printf '\\n__OPERIT_END__\\n'"
         ].join("\n");
-        const result = await runRemoteCommandHidden(config, script, config.timeoutMs, "fs");
+        const command = buildRemoteShellCommand(script, [path], useSudo);
+        const result = await runRemoteCommandHidden(config, command, config.timeoutMs, "fs");
         if (result.exitCode !== 0 || result.timedOut) {
             throw new Error(`Failed to read remote file: ${result.output}`);
         }
@@ -567,14 +637,14 @@ const linuxSshTools = (function () {
             content
         };
     }
-    async function writeRemoteFileContent(config, path, content, appendMode) {
-        const escapedPath = shellQuote(path);
+    async function writeRemoteFileContent(config, path, content, appendMode, useSudo) {
         const redirectOperator = appendMode ? ">>" : ">";
         const script = [
-            `mkdir -p \"$(dirname -- ${escapedPath})\"`,
-            `printf '%s' ${shellQuote(content)} ${redirectOperator} ${escapedPath}`
+            "mkdir -p \"$(dirname -- \"$1\")\"",
+            `printf '%s' \"$2\" ${redirectOperator} \"$1\"`
         ].join("\n");
-        const result = await runRemoteCommandHidden(config, script, config.timeoutMs, "fs");
+        const command = buildRemoteShellCommand(script, [path, content], useSudo);
+        const result = await runRemoteCommandHidden(config, command, config.timeoutMs, "fs");
         if (result.exitCode !== 0 || result.timedOut) {
             throw new Error(`Failed to write remote file: ${result.output}`);
         }
@@ -716,18 +786,21 @@ const linuxSshTools = (function () {
                 allowParamConnection: false,
                 allowParamAuth: false
             });
-            const tmuxSessionName = firstNonBlank(params && asText(params.tmux_session_name), config.tmuxSessionName);
-            const windowName = firstNonBlank(params && asText(params.window_name), `job_${Date.now()}`);
+            const tmuxSessionName = DEFAULT_TMUX_SESSION_NAME;
+            const requestedWindowName = asText(params && params.window_name).trim();
             const workdir = asText(params && params.workdir).trim();
             const tmuxReady = await ensureRemoteTmux(config);
             if (!tmuxReady.success) {
                 throw new Error(`tmux setup failed: ${tmuxReady.output}`);
             }
+            const targetWindowReady = await ensureRemoteTmuxWindow(config, requestedWindowName);
+            if (!targetWindowReady.success || !targetWindowReady.windowName) {
+                throw new Error(`tmux window setup failed: ${targetWindowReady.output}`);
+            }
+            const windowName = targetWindowReady.windowName;
             const runLine = workdir ? `cd ${shellQuote(workdir)} && ${command}` : command;
             const targetWindow = `${tmuxSessionName}:${windowName}`;
             const script = [
-                `tmux has-session -t ${shellQuote(tmuxSessionName)} 2>/dev/null || tmux new-session -d -s ${shellQuote(tmuxSessionName)} -n main`,
-                `tmux new-window -d -t ${shellQuote(tmuxSessionName)} -n ${shellQuote(windowName)}`,
                 `tmux send-keys -t ${shellQuote(targetWindow)} ${shellQuote(runLine)} C-m`,
                 "printf '__OPERIT_TMUX_RUN_OK__\\n'",
                 `echo "session=${tmuxSessionName}"`,
@@ -740,6 +813,7 @@ const linuxSshTools = (function () {
                 packageVersion: PACKAGE_VERSION,
                 tmuxSessionName,
                 windowName,
+                tmuxTarget: targetWindow,
                 workdir,
                 exitCode: result.exitCode,
                 timedOut: result.timedOut,
@@ -763,7 +837,7 @@ const linuxSshTools = (function () {
                 allowParamConnection: false,
                 allowParamAuth: false
             });
-            const tmuxSessionName = firstNonBlank(params && asText(params.tmux_session_name), config.tmuxSessionName);
+            const tmuxSessionName = DEFAULT_TMUX_SESSION_NAME;
             const windowName = asText(params && params.window_name).trim();
             const maxLines = parsePositiveInt(params && params.max_lines, 200);
             const tmuxReady = await ensureRemoteTmux(config);
@@ -808,7 +882,7 @@ const linuxSshTools = (function () {
                 allowParamConnection: false,
                 allowParamAuth: false
             });
-            const tmuxSessionName = firstNonBlank(params && asText(params.tmux_session_name), config.tmuxSessionName);
+            const tmuxSessionName = DEFAULT_TMUX_SESSION_NAME;
             const tmuxReady = await ensureRemoteTmux(config);
             if (!tmuxReady.success) {
                 throw new Error(`tmux setup failed: ${tmuxReady.output}`);
@@ -861,28 +935,114 @@ const linuxSshTools = (function () {
             };
         }
     }
-    async function linux_ssh_terminal_open(params) {
+    async function linux_ssh_tmux_input(params) {
         try {
+            const requestedWindowName = asText(params && params.window_name).trim();
+            const inputText = params && params.input !== undefined && params.input !== null
+                ? asText(params.input)
+                : "";
+            const controlKey = params && params.control !== undefined && params.control !== null
+                ? normalizeTmuxControlKey(params.control)
+                : "";
+            if (!requestedWindowName) {
+                throw new Error("Missing required parameter: window_name");
+            }
+            if (!inputText && !controlKey) {
+                throw new Error("At least one of input/control is required");
+            }
             const config = await resolveSshConfig(params, {
                 persistIfProvided: false,
                 requireAuth: true,
                 allowParamConnection: false,
                 allowParamAuth: false
             });
-            await ensureLocalSshDependencies(config, createVisibleRunner(config.localSessionName));
-            const session = await createLocalTerminalSession(config.localSessionName);
-            const command = buildSshCommand(config, undefined, true);
-            const timeoutMs = parsePositiveInt(params && params.timeout_ms, DEFAULT_CONNECT_OPEN_TIMEOUT_MS);
-            const openResult = await Tools.System.terminal.exec(session.sessionId, command, timeoutMs);
+            const tmuxSessionName = DEFAULT_TMUX_SESSION_NAME;
+            const tmuxReady = await ensureRemoteTmux(config);
+            if (!tmuxReady.success) {
+                throw new Error(`tmux setup failed: ${tmuxReady.output}`);
+            }
+            const targetWindowReady = await ensureRemoteTmuxWindow(config, requestedWindowName);
+            if (!targetWindowReady.success || !targetWindowReady.windowName) {
+                throw new Error(`tmux window setup failed: ${targetWindowReady.output}`);
+            }
+            const windowName = targetWindowReady.windowName;
+            const targetWindow = `${tmuxSessionName}:${windowName}`;
+            const scriptLines = [];
+            if (inputText) {
+                scriptLines.push(`tmux send-keys -t ${shellQuote(targetWindow)} ${shellQuote(inputText)}`);
+            }
+            if (controlKey) {
+                scriptLines.push(`tmux send-keys -t ${shellQuote(targetWindow)} ${shellQuote(controlKey)}`);
+            }
+            scriptLines.push("printf '__OPERIT_TMUX_INPUT_OK__\\n'");
+            const result = await runRemoteCommandHidden(config, scriptLines.join("\n"), config.timeoutMs, "tmux");
+            const success = result.exitCode === 0 && !result.timedOut && result.output.includes("__OPERIT_TMUX_INPUT_OK__");
             return {
-                success: true,
+                success,
                 packageVersion: PACKAGE_VERSION,
-                sessionId: openResult.sessionId || session.sessionId,
-                timeoutMs,
-                timedOut: !!openResult.timedOut,
-                exitCode: Number(openResult.exitCode || 0),
-                output: asText(openResult.output),
-                hint: "Use linux_ssh_terminal_input and linux_ssh_terminal_screen for interactive operations."
+                tmuxSessionName,
+                windowName,
+                tmuxTarget: targetWindow,
+                input: inputText,
+                control: controlKey,
+                exitCode: result.exitCode,
+                timedOut: result.timedOut,
+                output: result.output,
+                error: success ? "" : `tmux input failed, exitCode=${result.exitCode}`
+            };
+        }
+        catch (error) {
+            return {
+                success: false,
+                packageVersion: PACKAGE_VERSION,
+                error: error && error.message ? error.message : String(error)
+            };
+        }
+    }
+    async function linux_ssh_tmux_close(params) {
+        try {
+            const tmuxSessionName = DEFAULT_TMUX_SESSION_NAME;
+            const windowName = asText(params && params.window_name).trim();
+            if (!windowName) {
+                throw new Error("Missing required parameter: window_name");
+            }
+            const config = await resolveSshConfig(params, {
+                persistIfProvided: false,
+                requireAuth: true,
+                allowParamConnection: false,
+                allowParamAuth: false
+            });
+            const tmuxReady = await ensureRemoteTmux(config);
+            if (!tmuxReady.success) {
+                throw new Error(`tmux setup failed: ${tmuxReady.output}`);
+            }
+            const targetWindow = `${tmuxSessionName}:${windowName}`;
+            const script = [
+                `tmux has-session -t ${shellQuote(tmuxSessionName)} 2>/dev/null || { echo '__OPERIT_TMUX_NOT_FOUND__'; exit 4; }`,
+                `tmux list-windows -t ${shellQuote(tmuxSessionName)} -F '#{window_name}' | grep -Fx -- ${shellQuote(windowName)} >/dev/null || { echo '__OPERIT_TMUX_WINDOW_NOT_FOUND__'; exit 5; }`,
+                `tmux kill-window -t ${shellQuote(targetWindow)}`,
+                "printf '__OPERIT_TMUX_CLOSE_OK__\\n'"
+            ].join("\n");
+            const result = await runRemoteCommandHidden(config, script, config.timeoutMs, "tmux");
+            const sessionExists = !hasExactMarkerLine(result.output, "__OPERIT_TMUX_NOT_FOUND__");
+            const windowExists = !hasExactMarkerLine(result.output, "__OPERIT_TMUX_WINDOW_NOT_FOUND__");
+            const success = result.exitCode === 0 && !result.timedOut && sessionExists && windowExists && result.output.includes("__OPERIT_TMUX_CLOSE_OK__");
+            return {
+                success,
+                packageVersion: PACKAGE_VERSION,
+                tmuxSessionName,
+                windowName,
+                tmuxTarget: targetWindow,
+                sessionExists,
+                windowExists,
+                exitCode: result.exitCode,
+                timedOut: result.timedOut,
+                output: result.output,
+                error: !sessionExists
+                    ? `tmux session not found: ${tmuxSessionName}`
+                    : (!windowExists
+                        ? `tmux window not found: ${windowName}`
+                        : (success ? "" : `tmux close failed, exitCode=${result.exitCode}`))
             };
         }
         catch (error) {
@@ -900,8 +1060,7 @@ const linuxSshTools = (function () {
             if (input === undefined && control === undefined) {
                 throw new Error("At least one of input/control is required");
             }
-            const localSessionName = firstNonBlank(params && asText(params.local_session_name), readEnv(ENV_KEYS.localSessionName), DEFAULT_LOCAL_SESSION_NAME);
-            const session = await createLocalTerminalSession(localSessionName);
+            const session = await createLocalTerminalSession();
             const result = await Tools.System.terminal.input(session.sessionId, {
                 input: input === undefined ? undefined : asText(input),
                 control: control === undefined ? undefined : asText(control)
@@ -909,7 +1068,6 @@ const linuxSshTools = (function () {
             return {
                 success: true,
                 packageVersion: PACKAGE_VERSION,
-                localSessionName,
                 sessionId: session.sessionId,
                 result: extractStringResult(result)
             };
@@ -924,40 +1082,15 @@ const linuxSshTools = (function () {
     }
     async function linux_ssh_terminal_screen(params) {
         try {
-            const localSessionName = firstNonBlank(params && asText(params.local_session_name), readEnv(ENV_KEYS.localSessionName), DEFAULT_LOCAL_SESSION_NAME);
-            const session = await createLocalTerminalSession(localSessionName);
+            const session = await createLocalTerminalSession();
             const result = await Tools.System.terminal.screen(session.sessionId);
             return {
                 success: true,
                 packageVersion: PACKAGE_VERSION,
-                localSessionName,
                 sessionId: result.sessionId || session.sessionId,
                 rows: Number(result.rows || 0),
                 cols: Number(result.cols || 0),
                 content: asText(result.content)
-            };
-        }
-        catch (error) {
-            return {
-                success: false,
-                packageVersion: PACKAGE_VERSION,
-                error: error && error.message ? error.message : String(error)
-            };
-        }
-    }
-    async function linux_ssh_terminal_close(params) {
-        try {
-            const localSessionName = firstNonBlank(params && asText(params.local_session_name), readEnv(ENV_KEYS.localSessionName), DEFAULT_LOCAL_SESSION_NAME);
-            const session = await createLocalTerminalSession(localSessionName);
-            await Tools.System.terminal.input(session.sessionId, { input: "exit" });
-            await Tools.System.terminal.input(session.sessionId, { control: "enter" });
-            const closeResult = await Tools.System.terminal.close(session.sessionId);
-            return {
-                success: true,
-                packageVersion: PACKAGE_VERSION,
-                localSessionName,
-                sessionId: session.sessionId,
-                closeMessage: extractStringResult(closeResult)
             };
         }
         catch (error) {
@@ -1012,10 +1145,11 @@ const linuxSshTools = (function () {
             });
             const lineStart = parseOptionalPositiveInt(params && params.line_start, "line_start");
             const lineEnd = parseOptionalPositiveInt(params && params.line_end, "line_end");
+            const useSudo = parseBoolean(params && params.sudo, false);
             if (lineStart !== undefined && lineEnd !== undefined && lineEnd < lineStart) {
                 throw new Error("line_end must be greater than or equal to line_start");
             }
-            const readResult = await readRemoteFileContent(config, path, lineStart, lineEnd);
+            const readResult = await readRemoteFileContent(config, path, lineStart, lineEnd, useSudo);
             return {
                 success: true,
                 packageVersion: PACKAGE_VERSION,
@@ -1050,7 +1184,8 @@ const linuxSshTools = (function () {
             });
             const content = asText(params.content);
             const append = parseBoolean(params && params.append, false);
-            await writeRemoteFileContent(config, path, content, append);
+            const useSudo = parseBoolean(params && params.sudo, false);
+            await writeRemoteFileContent(config, path, content, append, useSudo);
             return {
                 success: true,
                 packageVersion: PACKAGE_VERSION,
@@ -1088,7 +1223,8 @@ const linuxSshTools = (function () {
             });
             const newText = asText(params.new_text);
             const expectedReplacements = parsePositiveInt(params && params.expected_replacements, 1);
-            const readResult = await readRemoteFileContent(config, path, undefined, undefined);
+            const useSudo = parseBoolean(params && params.sudo, false);
+            const readResult = await readRemoteFileContent(config, path, undefined, undefined, useSudo);
             const source = readResult.content;
             const parts = source.split(oldText);
             const replacements = parts.length - 1;
@@ -1096,7 +1232,7 @@ const linuxSshTools = (function () {
                 throw new Error(`Replacement count mismatch: expected ${expectedReplacements}, actual ${replacements}`);
             }
             const updated = parts.join(newText);
-            await writeRemoteFileContent(config, path, updated, false);
+            await writeRemoteFileContent(config, path, updated, false, useSudo);
             return {
                 success: true,
                 packageVersion: PACKAGE_VERSION,
@@ -1123,10 +1259,10 @@ const linuxSshTools = (function () {
         linux_ssh_tmux_run,
         linux_ssh_tmux_capture,
         linux_ssh_tmux_list_windows,
-        linux_ssh_terminal_open,
+        linux_ssh_tmux_input,
+        linux_ssh_tmux_close,
         linux_ssh_terminal_input,
         linux_ssh_terminal_screen,
-        linux_ssh_terminal_close,
         linux_ssh_ls,
         linux_ssh_read,
         linux_ssh_write,
@@ -1140,10 +1276,10 @@ exports.linux_ssh_ensure_tmux = linuxSshTools.linux_ssh_ensure_tmux;
 exports.linux_ssh_tmux_run = linuxSshTools.linux_ssh_tmux_run;
 exports.linux_ssh_tmux_capture = linuxSshTools.linux_ssh_tmux_capture;
 exports.linux_ssh_tmux_list_windows = linuxSshTools.linux_ssh_tmux_list_windows;
-exports.linux_ssh_terminal_open = linuxSshTools.linux_ssh_terminal_open;
+exports.linux_ssh_tmux_input = linuxSshTools.linux_ssh_tmux_input;
+exports.linux_ssh_tmux_close = linuxSshTools.linux_ssh_tmux_close;
 exports.linux_ssh_terminal_input = linuxSshTools.linux_ssh_terminal_input;
 exports.linux_ssh_terminal_screen = linuxSshTools.linux_ssh_terminal_screen;
-exports.linux_ssh_terminal_close = linuxSshTools.linux_ssh_terminal_close;
 exports.linux_ssh_ls = linuxSshTools.linux_ssh_ls;
 exports.linux_ssh_read = linuxSshTools.linux_ssh_read;
 exports.linux_ssh_write = linuxSshTools.linux_ssh_write;

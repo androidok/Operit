@@ -189,7 +189,7 @@ object DocumentConversionUtil {
 
             // Save the bitmap to the target file in the requested format
             val format =
-                    when (targetExt.toLowerCase()) {
+                    when (targetExt.lowercase()) {
                         "jpg", "jpeg" -> Bitmap.CompressFormat.JPEG
                         "png" -> Bitmap.CompressFormat.PNG
                         "webp" -> Bitmap.CompressFormat.WEBP

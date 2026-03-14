@@ -1,6 +1,7 @@
 import { resolveLinuxSshSetupI18n, type LinuxSshSetupI18n } from "../i18n";
 
 const LINUX_SSH_PACKAGE_NAME = "linux_ssh";
+const DEFAULT_TMUX_SESSION_NAME = "operit_ai";
 
 const ENV_KEYS = {
     host: "LINUX_SSH_HOST",
@@ -8,7 +9,6 @@ const ENV_KEYS = {
     username: "LINUX_SSH_USERNAME",
     password: "LINUX_SSH_PASSWORD",
     privateKeyPath: "LINUX_SSH_PRIVATE_KEY_PATH",
-    tmuxSession: "LINUX_SSH_TMUX_SESSION",
     timeoutMs: "LINUX_SSH_TIMEOUT_MS"
 };
 
@@ -17,7 +17,6 @@ type LinuxSshConnectionParams = {
     username: string;
     password: string;
     private_key_path: string;
-    tmux_session_name: string;
     port?: number;
     timeout_ms?: number;
 };
@@ -68,10 +67,6 @@ function toErrorText(error: unknown): string {
         return error.message || resolveText().unknown;
     }
     return asText(error || resolveText().unknown);
-}
-
-function shellSingleQuote(raw: string): string {
-    return `'${raw.replace(/'/g, `'\"'\"'`)}'`;
 }
 
 function extractMarkedBlock(output: string, beginToken: string, endToken: string): string {
@@ -163,6 +158,15 @@ function parseTmuxTabsFromListResult(result: unknown): TmuxTab[] {
         .filter((item): item is TmuxTab => item !== null);
 }
 
+function getNextTaskWindowName(tabs: TmuxTab[]): string {
+    const existingNames = new Set(tabs.map((tab) => tab.windowName));
+    let seq = 1;
+    while (existingNames.has(`task-${seq}`)) {
+        seq += 1;
+    }
+    return `task-${seq}`;
+}
+
 async function resolveToolName(ctx: ComposeDslContext, packageName: string, toolName: string): Promise<string> {
     if (ctx.resolveToolName) {
         const resolved = await ctx.resolveToolName({ packageName, toolName, preferImported: true });
@@ -225,7 +229,6 @@ export default function Screen(ctx: ComposeDslContext): ComposeNode {
     const usernameState = useStateValue(ctx, "username", ctx.getEnv(ENV_KEYS.username) || "");
     const passwordState = useStateValue(ctx, "password", ctx.getEnv(ENV_KEYS.password) || "");
     const privateKeyPathState = useStateValue(ctx, "privateKeyPath", ctx.getEnv(ENV_KEYS.privateKeyPath) || "");
-    const tmuxSessionState = useStateValue(ctx, "tmuxSession", ctx.getEnv(ENV_KEYS.tmuxSession) || "operit_ai");
     const timeoutMsState = useStateValue(ctx, "timeoutMs", ctx.getEnv(ENV_KEYS.timeoutMs) || "20000");
 
     const tmuxCommandState = useStateValue(ctx, "tmuxCommand", "");
@@ -244,8 +247,7 @@ export default function Screen(ctx: ComposeDslContext): ComposeNode {
             host: hostState.value.trim(),
             username: usernameState.value.trim(),
             password: passwordState.value,
-            private_key_path: privateKeyPathState.value.trim(),
-            tmux_session_name: tmuxSessionState.value.trim()
+            private_key_path: privateKeyPathState.value.trim()
         };
 
         const parsedPort = parseOptionalPositiveInt(portState.value);
@@ -266,7 +268,6 @@ export default function Screen(ctx: ComposeDslContext): ComposeNode {
             [ENV_KEYS.username]: usernameState.value.trim(),
             [ENV_KEYS.password]: passwordState.value,
             [ENV_KEYS.privateKeyPath]: privateKeyPathState.value.trim(),
-            [ENV_KEYS.tmuxSession]: tmuxSessionState.value.trim(),
             [ENV_KEYS.timeoutMs]: timeoutMsState.value.trim()
         });
     };
@@ -325,7 +326,6 @@ export default function Screen(ctx: ComposeDslContext): ComposeNode {
     const captureTmuxWindow = async (windowName: string): Promise<unknown> => {
         return await callLinuxTool("linux_ssh_tmux_capture", {
             ...getConnectionParams(),
-            tmux_session_name: tmuxSessionState.value.trim(),
             window_name: windowName,
             max_lines: parseOptionalPositiveInt(tmuxLinesState.value) || 300
         });
@@ -333,16 +333,8 @@ export default function Screen(ctx: ComposeDslContext): ComposeNode {
 
     const refreshTmuxTabsAction = async (): Promise<void> => {
         await runAction(text.actionSyncTmuxSession, async () => {
-            const sessionName = tmuxSessionState.value.trim();
-            if (!sessionName) {
-                throw new Error(text.errorTmuxSessionRequired);
-            }
-
             await saveCurrentConfigToEnv();
-            const listResult = await callLinuxTool("linux_ssh_tmux_list_windows", {
-                ...getConnectionParams(),
-                tmux_session_name: sessionName
-            });
+            const listResult = await callLinuxTool("linux_ssh_tmux_list_windows", getConnectionParams());
 
             const tabs = parseTmuxTabsFromListResult(listResult);
             tmuxTabsState.set(tabs);
@@ -374,46 +366,19 @@ export default function Screen(ctx: ComposeDslContext): ComposeNode {
 
     const createTmuxTabAction = async (): Promise<void> => {
         await runAction(text.actionCreateTmuxTab, async () => {
-            const sessionName = tmuxSessionState.value.trim();
-            if (!sessionName) {
-                throw new Error(text.errorTmuxSessionRequired);
-            }
-
             await saveCurrentConfigToEnv();
-            const listResult = await callLinuxTool("linux_ssh_tmux_list_windows", {
-                ...getConnectionParams(),
-                tmux_session_name: sessionName
-            });
+            const listResult = await callLinuxTool("linux_ssh_tmux_list_windows", getConnectionParams());
             const tabs = parseTmuxTabsFromListResult(listResult);
-            const existingNames = new Set(tabs.map((tab) => tab.windowName));
-            let windowName = "main";
+            const windowName = getNextTaskWindowName(tabs);
 
-            if (tabs.length > 0) {
-                let seq = 1;
-                let candidate = `tab-${seq}`;
-                while (existingNames.has(candidate)) {
-                    seq += 1;
-                    candidate = `tab-${seq}`;
-                }
-                windowName = candidate;
-            }
-
-            const createScript = [
-                `tmux has-session -t ${shellSingleQuote(sessionName)} 2>/dev/null || tmux new-session -d -s ${shellSingleQuote(sessionName)} -n main`,
-                `tmux list-windows -t ${shellSingleQuote(sessionName)} -F '#{window_name}' | grep -Fx -- ${shellSingleQuote(windowName)} >/dev/null || tmux new-window -d -t ${shellSingleQuote(sessionName)} -n ${shellSingleQuote(windowName)}`,
-                "printf '__OPERIT_TMUX_TAB_CREATED__\\n'"
-            ].join("\n");
-
-            const createResult = await callLinuxTool("linux_ssh_exec", {
+            const createResult = await callLinuxTool("linux_ssh_tmux_input", {
                 ...getConnectionParams(),
-                command: createScript
+                window_name: windowName,
+                control: "enter"
             });
 
             selectedTmuxTabState.set(windowName);
-            const listAfterCreateResult = await callLinuxTool("linux_ssh_tmux_list_windows", {
-                ...getConnectionParams(),
-                tmux_session_name: sessionName
-            });
+            const listAfterCreateResult = await callLinuxTool("linux_ssh_tmux_list_windows", getConnectionParams());
             tmuxTabsState.set(parseTmuxTabsFromListResult(listAfterCreateResult));
 
             const captureResult = await captureTmuxWindow(windowName);
@@ -425,33 +390,18 @@ export default function Screen(ctx: ComposeDslContext): ComposeNode {
 
     const deleteTmuxTabAction = async (): Promise<void> => {
         await runAction(text.actionDeleteCurrentTab, async () => {
-            const sessionName = tmuxSessionState.value.trim();
             const windowName = selectedTmuxTabState.value.trim();
-            if (!sessionName) {
-                throw new Error(text.errorTmuxSessionRequired);
-            }
             if (!windowName) {
                 throw new Error(text.errorDeleteTabRequired);
             }
 
             await saveCurrentConfigToEnv();
-            const target = `${sessionName}:${windowName}`;
-            const removeScript = [
-                `tmux has-session -t ${shellSingleQuote(sessionName)} 2>/dev/null || { echo '__OPERIT_TMUX_SESSION_NOT_FOUND__'; exit 0; }`,
-                `tmux list-windows -t ${shellSingleQuote(sessionName)} -F '#{window_name}' | grep -Fx -- ${shellSingleQuote(windowName)} >/dev/null || { echo '__OPERIT_TMUX_WINDOW_NOT_FOUND__'; exit 0; }`,
-                `tmux kill-window -t ${shellSingleQuote(target)}`,
-                "printf '__OPERIT_TMUX_WINDOW_DELETED__\\n'"
-            ].join("\n");
-
-            const removeResult = await callLinuxTool("linux_ssh_exec", {
+            const removeResult = await callLinuxTool("linux_ssh_tmux_close", {
                 ...getConnectionParams(),
-                command: removeScript
+                window_name: windowName
             });
 
-            const listAfterDeleteResult = await callLinuxTool("linux_ssh_tmux_list_windows", {
-                ...getConnectionParams(),
-                tmux_session_name: sessionName
-            });
+            const listAfterDeleteResult = await callLinuxTool("linux_ssh_tmux_list_windows", getConnectionParams());
             const tabs = parseTmuxTabsFromListResult(listAfterDeleteResult);
             tmuxTabsState.set(tabs);
             const nextSelected = tabs[0]?.windowName || "";
@@ -510,14 +460,10 @@ export default function Screen(ctx: ComposeDslContext): ComposeNode {
 
     const runTmuxCommandAction = async (): Promise<void> => {
         await runAction(text.actionRunTmuxCommand, async () => {
-            const sessionName = tmuxSessionState.value.trim();
             const selectedWindow = selectedTmuxTabState.value.trim();
-            const windowName = selectedWindow || "main";
+            const windowName = selectedWindow || tmuxTabsState.value[0]?.windowName || getNextTaskWindowName(tmuxTabsState.value);
             const command = tmuxCommandState.value.trim();
 
-            if (!sessionName) {
-                throw new Error(text.errorTmuxSessionRequired);
-            }
             if (!command) {
                 throw new Error(text.errorEnterCommandFirst);
             }
@@ -527,17 +473,11 @@ export default function Screen(ctx: ComposeDslContext): ComposeNode {
                 selectedTmuxTabState.set(windowName);
             }
 
-            const target = `${sessionName}:${windowName}`;
-            const sendScript = [
-                `tmux has-session -t ${shellSingleQuote(sessionName)} 2>/dev/null || tmux new-session -d -s ${shellSingleQuote(sessionName)} -n main`,
-                `tmux list-windows -t ${shellSingleQuote(sessionName)} -F '#{window_name}' | grep -Fx -- ${shellSingleQuote(windowName)} >/dev/null || tmux new-window -d -t ${shellSingleQuote(sessionName)} -n ${shellSingleQuote(windowName)}`,
-                `tmux send-keys -t ${shellSingleQuote(target)} ${shellSingleQuote(command)} C-m`,
-                "printf '__OPERIT_TMUX_SEND_OK__\\n'"
-            ].join("\n");
-
-            const runResult = await callLinuxTool("linux_ssh_exec", {
+            const runResult = await callLinuxTool("linux_ssh_tmux_input", {
                 ...getConnectionParams(),
-                command: sendScript
+                window_name: windowName,
+                input: command,
+                control: "enter"
             });
 
             const captureResult = await captureTmuxWindow(windowName);
@@ -779,55 +719,28 @@ export default function Screen(ctx: ComposeDslContext): ComposeNode {
                                 ])
                             ]),
 
-                            ctx.UI.Row({ spacing: 8 }, [
-                                ctx.UI.Surface({
-                                    weight: 1,
-                                    shape: { cornerRadius: 10 },
-                                    containerColor: "surfaceVariant",
-                                    alpha: 0.35
-                                }, [
-                                    ctx.UI.Column({ padding: 12, spacing: 8 }, [
-                                        ctx.UI.Text({ text: text.fieldTmuxSessionLabel, style: "bodyMedium", fontWeight: "medium" }),
-                                        ctx.UI.Text({ text: text.fieldTmuxSessionDesc, style: "bodySmall", color: "onSurfaceVariant" }),
-                                        ctx.UI.Spacer({ height: 4 }),
-                                        ctx.UI.Surface({
-                                            fillMaxWidth: true,
-                                            shape: { cornerRadius: 6 },
-                                            containerColor: "surfaceVariant",
-                                            alpha: 0.65
-                                        }, [
-                                            ctx.UI.TextField({
-                                                value: tmuxSessionState.value,
-                                                onValueChange: tmuxSessionState.set,
-                                                singleLine: true,
-                                                style: { fontSize: 14, fontWeight: "semiBold", color: "primary" }
-                                            })
-                                        ])
-                                    ])
-                                ]),
-                                ctx.UI.Surface({
-                                    weight: 1,
-                                    shape: { cornerRadius: 10 },
-                                    containerColor: "surfaceVariant",
-                                    alpha: 0.35
-                                }, [
-                                    ctx.UI.Column({ padding: 12, spacing: 8 }, [
-                                        ctx.UI.Text({ text: text.fieldTimeoutLabel, style: "bodyMedium", fontWeight: "medium" }),
-                                        ctx.UI.Text({ text: text.fieldTimeoutDesc, style: "bodySmall", color: "onSurfaceVariant" }),
-                                        ctx.UI.Spacer({ height: 4 }),
-                                        ctx.UI.Surface({
-                                            fillMaxWidth: true,
-                                            shape: { cornerRadius: 6 },
-                                            containerColor: "surfaceVariant",
-                                            alpha: 0.65
-                                        }, [
-                                            ctx.UI.TextField({
-                                                value: timeoutMsState.value,
-                                                onValueChange: timeoutMsState.set,
-                                                singleLine: true,
-                                                style: { fontSize: 14, fontWeight: "semiBold", color: "primary" }
-                                            })
-                                        ])
+                            ctx.UI.Surface({
+                                fillMaxWidth: true,
+                                shape: { cornerRadius: 10 },
+                                containerColor: "surfaceVariant",
+                                alpha: 0.35
+                            }, [
+                                ctx.UI.Column({ padding: 12, spacing: 8 }, [
+                                    ctx.UI.Text({ text: text.fieldTimeoutLabel, style: "bodyMedium", fontWeight: "medium" }),
+                                    ctx.UI.Text({ text: text.fieldTimeoutDesc, style: "bodySmall", color: "onSurfaceVariant" }),
+                                    ctx.UI.Spacer({ height: 4 }),
+                                    ctx.UI.Surface({
+                                        fillMaxWidth: true,
+                                        shape: { cornerRadius: 6 },
+                                        containerColor: "surfaceVariant",
+                                        alpha: 0.65
+                                    }, [
+                                        ctx.UI.TextField({
+                                            value: timeoutMsState.value,
+                                            onValueChange: timeoutMsState.set,
+                                            singleLine: true,
+                                            style: { fontSize: 14, fontWeight: "semiBold", color: "primary" }
+                                        })
                                     ])
                                 ])
                             ]),
@@ -845,7 +758,6 @@ export default function Screen(ctx: ComposeDslContext): ComposeNode {
 
                 const tmuxPreviewLinesRaw = (tmuxPreviewState.value || text.tmuxPreviewTapHint).replace(/\r/g, "").split("\n");
                 const tmuxPreviewLines = tmuxPreviewLinesRaw.length > 0 ? tmuxPreviewLinesRaw : [text.tmuxPreviewTapHint];
-                const tmuxPreviewLinesReversed = [...tmuxPreviewLines].reverse();
                 const tmuxPreviewHeight = Math.min(280, Math.max(120, tmuxPreviewLines.length * 18 + 16));
 
                 // tmux 配置卡片
@@ -974,8 +886,8 @@ export default function Screen(ctx: ComposeDslContext): ComposeNode {
                                             }),
                                             ctx.UI.Text({
                                                 text: selectedTmuxTabState.value
-                                                    ? `tmux://${tmuxSessionState.value.trim()}/${selectedTmuxTabState.value}`
-                                                    : "tmux://session/no-window",
+                                                    ? `tmux://${DEFAULT_TMUX_SESSION_NAME}/${selectedTmuxTabState.value}`
+                                                    : `tmux://${DEFAULT_TMUX_SESSION_NAME}/no-window`,
                                                 style: "labelSmall",
                                                 color: "#9EE6FF",
                                                 maxLines: 1
@@ -1002,11 +914,11 @@ export default function Screen(ctx: ComposeDslContext): ComposeNode {
                                             {
                                                 fillMaxWidth: true,
                                                 height: tmuxPreviewHeight,
-                                                reverseLayout: true,
+                                                autoScrollToEnd: true,
                                                 spacing: 2,
                                                 padding: { horizontal: 10, vertical: 8 }
                                             },
-                                            tmuxPreviewLinesReversed.map((line, index) =>
+                                            tmuxPreviewLines.map((line, index) =>
                                                 ctx.UI.Text({
                                                     key: `tmux-preview-line-${index}`,
                                                     text: line || " ",

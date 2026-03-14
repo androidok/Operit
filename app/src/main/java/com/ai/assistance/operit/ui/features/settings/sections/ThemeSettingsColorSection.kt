@@ -50,6 +50,8 @@ internal fun ThemeSettingsColorCustomizationSection(
     onChatHeaderOverlayModeInputChange: (Boolean) -> Unit,
     chatInputTransparentInput: Boolean,
     onChatInputTransparentInputChange: (Boolean) -> Unit,
+    chatInputLiquidGlassInput: Boolean,
+    onChatInputLiquidGlassInputChange: (Boolean) -> Unit,
     forceAppBarContentColorInput: Boolean,
     onForceAppBarContentColorInputChange: (Boolean) -> Unit,
     appBarContentColorModeInput: String,
@@ -381,6 +383,36 @@ internal fun ThemeSettingsColorCustomizationSection(
                         }
                     },
                 )
+            }
+
+            if (chatInputTransparentInput) {
+                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = stringResource(id = R.string.theme_chat_input_liquid_glass),
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                        Text(
+                            text = stringResource(id = R.string.theme_chat_input_liquid_glass_desc),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Switch(
+                        checked = chatInputLiquidGlassInput,
+                        onCheckedChange = {
+                            onChatInputLiquidGlassInputChange(it)
+                            saveThemeSettingsWithCharacterCard {
+                                preferencesManager.saveThemeSettings(chatInputLiquidGlass = it)
+                            }
+                        },
+                    )
+                }
             }
         }
     }

@@ -1,10 +1,12 @@
 import java.io.File
 import java.io.FileInputStream
 import java.util.Properties
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
+    alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.kotlin.kapt)
     alias(libs.plugins.kotlin.parcelize)
@@ -20,7 +22,7 @@ if (localPropertiesFile.exists()) {
 
 android {
     namespace = "com.ai.assistance.operit"
-    compileSdk = 34
+    compileSdk = 36
 
     signingConfigs {
         val releaseKeystorePath = localProperties.getProperty("RELEASE_STORE_FILE")
@@ -124,18 +126,12 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
         isCoreLibraryDesugaringEnabled = true
     }
-    kotlinOptions {
-        jvmTarget = "17"
-    }
     buildFeatures {
         compose = true
         aidl = true
         buildConfig = true
     }
     
-    composeOptions {
-        kotlinCompilerExtensionVersion = "1.5.8"
-    }
     packaging {
         
         jniLibs {
@@ -174,6 +170,12 @@ android {
 //    aaptOptions {
 //        noCompress += "tflite"
 //    }
+}
+
+kotlin {
+    compilerOptions {
+        jvmTarget = JvmTarget.JVM_17
+    }
 }
 
 dependencies {
@@ -255,7 +257,7 @@ dependencies {
     
     // Window metrics library for foldables and adaptive layouts
     implementation(libs.window)
-    
+
     // Document conversion libraries
     implementation(libs.itextg)
     implementation(libs.pdfbox)
@@ -368,6 +370,7 @@ dependencies {
 
     // Color picker for theme customization
     implementation(libs.colorpicker)
+    implementation(libs.backdrop)
     
     // NanoHTTPD for local web server
     implementation(libs.nanohttpd)
@@ -407,35 +410,7 @@ dependencies {
     implementation(libs.coroutines.core)
     implementation(libs.coroutines.android)
 
-    // ObjectBox
-    implementation(libs.objectbox.kotlin)
-    kapt(libs.objectbox.processor)
-    
-    // MCP Kotlin SDK with version compatibility fix
-    implementation("io.modelcontextprotocol.sdk:mcp:0.7.0") {
-        exclude(group = "org.jetbrains.kotlinx", module = "kotlinx-serialization-json")
-        exclude(group = "io.ktor", module = "ktor-client-core")
-        exclude(group = "io.ktor", module = "ktor-client-cio")
-        exclude(group = "io.ktor", module = "ktor-serialization-kotlinx-json")
-    }
-    
-    // 强制使用兼容的版本
-    configurations.all {
-        resolutionStrategy {
-            force("org.jetbrains.kotlinx:kotlinx-serialization-json:1.5.1")
-            force("io.ktor:ktor-client-core:2.3.5") 
-            force("io.ktor:ktor-client-cio:2.3.5")
-            force("io.ktor:ktor-serialization-kotlinx-json:2.3.5")
-            force("org.jetbrains.kotlin:kotlin-bom:1.9.22")
-            force("org.jetbrains.kotlin:kotlin-stdlib:1.9.22")
-            force("org.jetbrains.kotlin:kotlin-stdlib-common:1.9.22")
-            force("org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.9.22")
-            force("org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.9.22")
-            force("org.jetbrains.kotlin:kotlin-reflect:1.9.22")
-            // Force BouncyCastle to use jdk18on version to avoid duplicate classes
-            force("org.bouncycastle:bcprov-jdk18on:1.78")
-        }
-    }
+    implementation("io.modelcontextprotocol.sdk:mcp:1.1.0")
     
     // Exclude bcprov-jdk15to18 from all configurations to avoid duplicate classes
     configurations.all {

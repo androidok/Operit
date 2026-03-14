@@ -314,7 +314,7 @@ fun MCPConfigScreen(
         // Give services a moment to initialize after starting
         delay(1000)
 
-        AppLogger.d("MCPConfigScreen", "Fetching tools for configured deployed services...")
+        AppLogger.d("MCPConfigScreen", "Fetching tools for configured runtime-ready services...")
 
         val toolsMap = mutableMapOf<String, List<String>>()
 
@@ -323,9 +323,9 @@ fun MCPConfigScreen(
                 try {
                     val metadata = mcpConfigSnapshot.pluginMetadata[pluginId]
                     val isRemote = metadata?.type == "remote"
-                    val isDeployed = if (isRemote) true else mcpLocalServer.isPluginDeployed(pluginId)
+                    val isDeployed = if (isRemote) true else mcpLocalServer.isPluginRuntimeReady(pluginId)
                     if (!isDeployed) {
-                        AppLogger.d("MCPConfigScreen", "Plugin $pluginId is not deployed, skip tool fetch.")
+                        AppLogger.d("MCPConfigScreen", "Plugin $pluginId runtime directory is not ready, skip tool fetch.")
                         continue
                     }
 
@@ -1171,17 +1171,17 @@ fun MCPConfigScreen(
                                 mutableStateOf(mcpLocalServer.isServerLikelyRunning(pluginId))
                             }
                             
-                            // 检查部署状态
+                            // 检查运行目录就绪状态
                             LaunchedEffect(pluginId) {
-                                deploySuccessState.value = mcpLocalServer.isPluginDeployed(pluginId)
+                                deploySuccessState.value = mcpLocalServer.isPluginRuntimeReady(pluginId)
                             }
                             
                             // 监听服务器状态变化
                             LaunchedEffect(pluginId) {
                                 mcpLocalServer.serverStatus.collect { _ ->
                                     pluginRunningState.value = mcpLocalServer.isServerLikelyRunning(pluginId)
-                                    // 重新检查部署状态
-                                    deploySuccessState.value = mcpLocalServer.isPluginDeployed(pluginId)
+                                    // 重新检查运行目录就绪状态
+                                    deploySuccessState.value = mcpLocalServer.isPluginRuntimeReady(pluginId)
                                 }
                             }
                             

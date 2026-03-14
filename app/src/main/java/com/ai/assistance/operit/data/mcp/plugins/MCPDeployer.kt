@@ -122,8 +122,7 @@ class MCPDeployer(private val context: Context) {
                         }
 
                         try {
-                            val pluginHomeDir = "~/mcp_plugins"
-                            val pluginDir = "$pluginHomeDir/${pluginId.split("/").last()}"
+                            val pluginDir = mcpLocalServer.getPluginRuntimeDirectory(pluginId)
                             statusCallback(DeploymentStatus.InProgress(context.getString(R.string.mcp_deployment_creating_directory, pluginDir)))
 
                             val mkdirExecuted = terminal.executeCommand(sessionId, "mkdir -p $pluginDir")
@@ -178,8 +177,7 @@ class MCPDeployer(private val context: Context) {
                         val projectStructure = projectAnalyzer.analyzeProjectStructure(pluginDir, readmeContent)
 
                         // 定义插件在 proot 环境中的目录路径
-                        val pluginHomeDir = "~/mcp_plugins"
-                        val pluginDirPath = "$pluginHomeDir/${pluginId.split("/").last()}"
+                        val pluginDirPath = mcpLocalServer.getPluginRuntimeDirectory(pluginId)
 
                         // 生成MCP配置，包含环境变量和插件目录路径
                         mcpConfig = configGenerator.generateMcpConfig(
@@ -286,8 +284,8 @@ class MCPDeployer(private val context: Context) {
             AppLogger.d(TAG, "为插件 $pluginId 创建独立部署会话: $sessionId")
 
             // 定义插件在 proot 环境中的主目录路径
-            val pluginHomeDir = "~/mcp_plugins"
-            val pluginDir = "$pluginHomeDir/${pluginId.split("/").last()}"
+            val mcpLocalServer = MCPLocalServer.getInstance(context)
+            val pluginDir = mcpLocalServer.getPluginRuntimeDirectory(pluginId)
 
             // 首先创建插件目录
             statusCallback(DeploymentStatus.InProgress(context.getString(R.string.mcp_deployment_creating_directory, pluginDir)))

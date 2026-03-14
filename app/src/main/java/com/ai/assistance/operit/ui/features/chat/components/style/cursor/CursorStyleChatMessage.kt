@@ -13,6 +13,7 @@ import com.ai.assistance.operit.util.stream.Stream
 fun CursorStyleChatMessage(
         message: ChatMessage,
         userMessageColor: Color,
+        userMessageLiquidGlassEnabled: Boolean = false,
         aiMessageColor: Color,
         userTextColor: Color,
         aiTextColor: Color,
@@ -33,6 +34,7 @@ fun CursorStyleChatMessage(
             UserMessageComposable(
                     message = message,
                     backgroundColor = userMessageColor,
+                    enableLiquidGlass = userMessageLiquidGlassEnabled,
                     textColor = userTextColor
             )
         }

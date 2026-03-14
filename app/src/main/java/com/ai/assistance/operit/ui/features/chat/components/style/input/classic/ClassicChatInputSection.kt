@@ -66,6 +66,8 @@ import com.ai.assistance.operit.ui.features.chat.components.style.input.common.P
 import com.ai.assistance.operit.ui.features.chat.components.style.input.common.PendingQueueMessageItem
 import com.ai.assistance.operit.ui.features.chat.viewmodel.ChatViewModel
 import com.ai.assistance.operit.ui.floating.FloatingMode
+import com.ai.assistance.operit.ui.theme.isLiquidGlassSupported
+import com.ai.assistance.operit.ui.theme.liquidGlass
 import com.ai.assistance.operit.util.ChatUtils
 import androidx.compose.ui.res.stringResource
 import android.net.Uri
@@ -93,6 +95,7 @@ fun ClassicChatInputSection(
     onTakePhoto: (Uri) -> Unit,
     hasBackgroundImage: Boolean = false,
     chatInputTransparent: Boolean = false,
+    chatInputLiquidGlass: Boolean = false,
     modifier: Modifier = Modifier,
     externalAttachmentPanelState: Boolean? = null,
     onAttachmentPanelStateChange: ((Boolean) -> Unit)? = null,
@@ -238,8 +241,20 @@ fun ClassicChatInputSection(
         hasBackgroundImage -> MaterialTheme.colorScheme.surface.copy(alpha = 0.92f)
         else -> MaterialTheme.colorScheme.surface
     }
+    val inputLiquidGlassEnabled =
+        chatInputTransparent && chatInputLiquidGlass && isLiquidGlassSupported()
 
-    Surface(color = surfaceColor) {
+    Surface(
+        color = if (inputLiquidGlassEnabled) Color.Transparent else surfaceColor,
+        modifier =
+            modifier.liquidGlass(
+                enabled = inputLiquidGlassEnabled,
+                containerColor = MaterialTheme.colorScheme.surface,
+                borderWidth = 0.42.dp,
+                blurRadius = 20.dp,
+                overlayAlphaBoost = 0.10f,
+            ),
+    ) {
         Column {
             // Reply preview section
             replyToMessage?.let { message ->

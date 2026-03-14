@@ -1012,7 +1012,7 @@ private fun synchronizeRenderNodes(
         )
     }
     while (renderNodes.size > nodes.size) {
-        renderNodes.removeLast()
+        renderNodes.removeAt(renderNodes.lastIndex)
     }
 
     // 3. 清理多余的缓存条目

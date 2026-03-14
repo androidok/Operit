@@ -174,6 +174,8 @@ val actualViewModel: ChatViewModel = viewModel ?: viewModel { ChatViewModel(cont
     val backgroundImageUri by preferencesManager.backgroundImageUri.collectAsState(initial = null)
     val chatHeaderTransparent by preferencesManager.chatHeaderTransparent.collectAsState(initial = false)
     val chatInputTransparent by preferencesManager.chatInputTransparent.collectAsState(initial = false)
+    val chatInputLiquidGlass by
+        preferencesManager.chatInputLiquidGlass.collectAsState(initial = false)
     val chatHeaderHistoryIconColor by preferencesManager.chatHeaderHistoryIconColor.collectAsState(
             initial = null
     )
@@ -200,6 +202,8 @@ val actualViewModel: ChatViewModel = viewModel ?: viewModel { ChatViewModel(cont
         )
     val cursorUserBubbleFollowTheme by
         preferencesManager.cursorUserBubbleFollowTheme.collectAsState(initial = true)
+    val cursorUserBubbleLiquidGlass by
+        preferencesManager.cursorUserBubbleLiquidGlass.collectAsState(initial = false)
     val cursorUserBubbleColorValue by
         preferencesManager.cursorUserBubbleColor.collectAsState(initial = null)
     val bubbleUserBubbleColorValue by
@@ -759,7 +763,6 @@ val actualViewModel: ChatViewModel = viewModel ?: viewModel { ChatViewModel(cont
         effectiveHasBackgroundImage -> colorScheme.surface.copy(alpha = 0.85f)
         else -> colorScheme.surface
     }
-
     Box(modifier = Modifier.fillMaxSize()) {
         CustomScaffold(
                 containerColor = Color.Transparent,
@@ -858,6 +861,7 @@ val actualViewModel: ChatViewModel = viewModel ?: viewModel { ChatViewModel(cont
                                 chatHeaderPipIconColor = chatHeaderPipIconColor,
                                 chatHeaderOverlayMode = chatHeaderOverlayMode,
                                 chatStyle = chatStyle, // Pass chat style
+                                cursorUserBubbleLiquidGlass = cursorUserBubbleLiquidGlass,
                                 historyListState = historyListState,
                                 onSwitchCharacter = onSwitchCharacter,
                                 chatAreaHorizontalPadding = chatAreaHorizontalPadding,
@@ -970,6 +974,7 @@ val actualViewModel: ChatViewModel = viewModel ?: viewModel { ChatViewModel(cont
                                 inputState = inputProcessingState,
                                 hasBackgroundImage = effectiveHasBackgroundImage,
                                 chatInputTransparent = chatInputTransparent,
+                                chatInputLiquidGlass = chatInputLiquidGlass,
                                 showInputProcessingStatus = showInputProcessingStatus,
                                 enableTools = enableTools,
                                 isWorkspaceOpen = isWorkspaceOpen,
@@ -1263,6 +1268,7 @@ private fun ChatInputBottomBar(
     inputState: InputProcessingState,
     hasBackgroundImage: Boolean,
     chatInputTransparent: Boolean,
+    chatInputLiquidGlass: Boolean,
     showInputProcessingStatus: Boolean,
     enableTools: Boolean,
     isWorkspaceOpen: Boolean,
@@ -1428,6 +1434,7 @@ private fun ChatInputBottomBar(
                 onTakePhoto = actualViewModel::handleTakenPhoto,
                 hasBackgroundImage = hasBackgroundImage,
                 chatInputTransparent = chatInputTransparent,
+                chatInputLiquidGlass = chatInputLiquidGlass,
                 externalAttachmentPanelState = attachmentPanelState,
                 onAttachmentPanelStateChange = actualViewModel::updateAttachmentPanelState,
                 showInputProcessingStatus = showInputProcessingStatus,
@@ -1511,6 +1518,7 @@ private fun ChatInputBottomBar(
                 onTakePhoto = actualViewModel::handleTakenPhoto,
                 hasBackgroundImage = hasBackgroundImage,
                 chatInputTransparent = chatInputTransparent,
+                chatInputLiquidGlass = chatInputLiquidGlass,
                 externalAttachmentPanelState = attachmentPanelState,
                 onAttachmentPanelStateChange = actualViewModel::updateAttachmentPanelState,
                 showInputProcessingStatus = showInputProcessingStatus,

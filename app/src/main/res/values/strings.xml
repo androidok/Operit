@@ -693,6 +693,8 @@
     <string name="theme_chat_input_transparent_title">输入框设置</string>
     <string name="theme_chat_input_transparent">透明输入框</string>
     <string name="theme_chat_input_transparent_desc">开启后聊天输入框将变为透明</string>
+    <string name="theme_chat_input_liquid_glass">液态玻璃输入框</string>
+    <string name="theme_chat_input_liquid_glass_desc">开启后，透明输入框会显示 iOS 风格液态玻璃效果</string>
     
     <!-- Floating Window -->
     <string name="floating_chat_window">聊天悬浮窗</string>
@@ -3362,6 +3364,8 @@
     <string name="chat_style_bubble_padding_right">右内边距</string>
     <string name="chat_style_cursor_user_follow_theme">命令式用户消息框跟随主题色</string>
     <string name="chat_style_cursor_user_follow_theme_desc">关闭后可自定义命令式用户消息框颜色（支持透明度）</string>
+    <string name="chat_style_cursor_user_bubble_liquid_glass">命令式用户消息液态玻璃背景</string>
+    <string name="chat_style_cursor_user_bubble_liquid_glass_desc">开启后，命令式用户消息背景会显示 iOS 风格液态玻璃效果</string>
     <string name="chat_style_cursor_user_bubble_color">命令式用户消息框</string>
     <string name="chat_style_bubble_color_title">对话式气泡颜色</string>
     <string name="chat_style_bubble_user_color">用户气泡</string>

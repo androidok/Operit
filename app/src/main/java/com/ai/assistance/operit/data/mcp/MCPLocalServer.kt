@@ -688,46 +688,42 @@ class MCPLocalServer private constructor(private val context: Context) {
         AppLogger.w(TAG, "设置启用状态失败，未找到服务器配置或远程元数据: $serverId")
     }
 
+    fun getPluginRuntimeDirectory(pluginId: String): String {
+        val pluginHomeDir = "~/mcp_plugins"
+        return "$pluginHomeDir/${pluginId.split("/").last()}"
+    }
+
+    private fun getPluginCommandName(pluginId: String): String? {
+        return getMCPServer(pluginId)?.command
+            ?.trim()
+            ?.substringAfterLast('/')
+            ?.substringAfterLast('\\')
+            ?.lowercase(Locale.ROOT)
+    }
+
+    private fun pluginRuntimeRequiresFiles(pluginId: String): Boolean {
+        return when (getPluginCommandName(pluginId)) {
+            "npx", "uvx", "uv" -> false
+            else -> true
+        }
+    }
+
     /**
-     * 检查插件是否已部署
-     * 对于虚拟路径插件（npx/uvx/uv）：直接返回true
-     * 对于实体路径插件：检查Linux文件系统中目录是否存在且包含至少1个文件
+     * 检查插件运行目录是否已就绪
+     * 对于 npx/uvx/uv 类型：目录存在即可，允许为空目录
+     * 对于普通本地插件：目录存在且至少包含一个文件
      */
-    suspend fun isPluginDeployed(pluginId: String): Boolean = withContext(Dispatchers.IO) {
+    suspend fun isPluginRuntimeReady(pluginId: String): Boolean = withContext(Dispatchers.IO) {
         try {
-            // 获取插件元数据
             val metadata = getPluginMetadata(pluginId)
-            val installedPath = metadata?.installedPath
 
             if (metadata?.type == "remote") {
-                AppLogger.d(TAG, "插件 $pluginId 是远程服务，判定为已部署")
+                AppLogger.d(TAG, "插件 $pluginId 是远程服务，运行目录视为已就绪")
                 return@withContext true
             }
 
-            val commandName = getMCPServer(pluginId)?.command
-                ?.trim()
-                ?.substringAfterLast('/')
-                ?.substringAfterLast('\\')
-                ?.lowercase(Locale.ROOT)
-            if (commandName == "npx" || commandName == "uvx" || commandName == "uv") {
-                AppLogger.d(TAG, "插件 $pluginId 使用 $commandName 命令，判定为已部署")
-                return@withContext true
-            }
-            
-            // 如果是虚拟路径，直接返回true
-            if (installedPath?.startsWith("virtual://") == true) {
-                AppLogger.d(TAG, "插件 $pluginId 是虚拟路径，判定为已部署")
-                return@withContext true
-            }
-            
-            // 检查Linux文件系统中是否存在插件目录
-            val pluginHomeDir = "~/mcp_plugins"
-            val pluginDir = "$pluginHomeDir/${pluginId.split("/").last()}"
-            
-            // 使用AIToolHandler检查目录是否存在
+            val pluginDir = getPluginRuntimeDirectory(pluginId)
             val toolHandler = AIToolHandler.getInstance(context)
-            
-            // 先检查目录是否存在
             val checkExistsTool = AITool(
                 name = "file_exists",
                 parameters = listOf(
@@ -741,11 +737,15 @@ class MCPLocalServer private constructor(private val context: Context) {
                             (existsResult.result as FileExistsData).exists
             
             if (!dirExists) {
-                AppLogger.d(TAG, "插件 $pluginId 目录不存在: $pluginDir")
+                AppLogger.d(TAG, "插件 $pluginId 运行目录不存在: $pluginDir")
                 return@withContext false
             }
-            
-            // 目录存在，检查是否有至少1个文件
+
+            if (!pluginRuntimeRequiresFiles(pluginId)) {
+                AppLogger.d(TAG, "插件 $pluginId 运行目录已就绪: $pluginDir (允许空目录)")
+                return@withContext true
+            }
+
             val listFilesTool = AITool(
                 name = "list_files",
                 parameters = listOf(
@@ -761,11 +761,11 @@ class MCPLocalServer private constructor(private val context: Context) {
             } else {
                 false
             }
-            
-            AppLogger.d(TAG, "插件 $pluginId 部署检查: $hasFiles (路径: $pluginDir, 包含${if (hasFiles) "有" else "无"}文件)")
+
+            AppLogger.d(TAG, "插件 $pluginId 运行目录检查: $hasFiles (路径: $pluginDir, 包含${if (hasFiles) "有" else "无"}文件)")
             return@withContext hasFiles
         } catch (e: Exception) {
-            AppLogger.e(TAG, "检查插件部署状态时出错: $pluginId", e)
+            AppLogger.e(TAG, "检查插件运行目录状态时出错: $pluginId", e)
             return@withContext false
         }
     }

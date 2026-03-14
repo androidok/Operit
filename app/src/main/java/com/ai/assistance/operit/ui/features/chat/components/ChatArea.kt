@@ -38,6 +38,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
@@ -213,6 +214,7 @@ fun ChatArea(
     messagesPerPage: Int = 10, // 每页显示的消息数量
     topPadding: Dp = 0.dp,
     chatStyle: ChatStyle = ChatStyle.CURSOR, // 新增参数，默认为CURSOR风格
+    cursorUserBubbleLiquidGlass: Boolean = false,
     isMultiSelectMode: Boolean = false, // 是否处于多选模式
     selectedMessageIndices: Set<Int> = emptySet(), // 已选中的消息索引集合
     onToggleMultiSelectMode: ((Int?) -> Unit)? = null, // 切换多选模式的回调，可传入要初始选中的消息索引
@@ -247,9 +249,42 @@ fun ChatArea(
                 .padding(top = topPadding),
         ) {
             val lastMessage = chatHistory.lastOrNull()
+            // 仅在首个chunk到达前显示加载点，避免父层跟随每个chunk重组。
+            var hasLastAiMessageStartedStreaming by remember(lastMessage?.timestamp) {
+                mutableStateOf(
+                    lastMessage?.let { it.sender == "ai" && it.content.isNotBlank() } == true
+                )
+            }
+            LaunchedEffect(lastMessage?.timestamp, lastMessage?.contentStream) {
+                val lastAiMessageHasStaticContent =
+                    lastMessage?.let { it.sender == "ai" && it.content.isNotBlank() } == true
+                hasLastAiMessageStartedStreaming = lastAiMessageHasStaticContent
+
+                val shouldAwaitFirstChunk =
+                    lastMessage?.let {
+                        it.sender == "ai" && it.content.isBlank() && it.contentStream != null
+                    } == true
+                val stream = lastMessage?.contentStream
+
+                if (!lastAiMessageHasStaticContent && shouldAwaitFirstChunk && stream != null) {
+                    stream.collect { chunk ->
+                        if (!hasLastAiMessageStartedStreaming && chunk.isNotEmpty()) {
+                            hasLastAiMessageStartedStreaming = true
+                        }
+                    }
+                }
+            }
             // 判断是否应该显示加载指示器，并且在 Bubble 模式下隐藏最后一条空消息
             val showLoadingIndicator =
-                isLoading && (lastMessage?.sender == "user" || (lastMessage?.sender == "ai" && lastMessage.content.isBlank()))
+                isLoading &&
+                    (
+                        lastMessage?.sender == "user" ||
+                            lastMessage?.let {
+                                it.sender == "ai" &&
+                                    it.content.isBlank() &&
+                                    !hasLastAiMessageStartedStreaming
+                            } == true
+                    )
             val shouldHideLastAiMessage =
                 showLoadingIndicator && chatStyle == ChatStyle.BUBBLE && lastMessage?.sender == "ai"
 
@@ -309,6 +344,7 @@ fun ChatArea(
                         onInsertSummary = onInsertSummary, // 传递插入总结回调
                         onMentionRoleFromAvatar = onMentionRoleFromAvatar, // 传递角色头像长按提及回调
                         chatStyle = chatStyle, // 传递风格
+                        cursorUserBubbleLiquidGlass = cursorUserBubbleLiquidGlass,
                         isHidden = shouldHide, // 新增参数控制隐藏
                         isMultiSelectMode = isMultiSelectMode, // 传递多选模式状态
                         isSelected = selectedMessageIndices.contains(actualIndex), // 传递选中状态
@@ -392,6 +428,7 @@ private fun MessageItem(
     onInsertSummary: ((Int, ChatMessage) -> Unit)? = null, // 添加插入总结回调
     onMentionRoleFromAvatar: ((String) -> Unit)? = null, // 长按角色头像提及
     chatStyle: ChatStyle, // 新增参数
+    cursorUserBubbleLiquidGlass: Boolean = false,
     isHidden: Boolean = false, // 新增参数控制隐藏
     isMultiSelectMode: Boolean = false, // 是否处于多选模式
     isSelected: Boolean = false, // 是否被选中
@@ -444,6 +481,7 @@ private fun MessageItem(
                 CursorStyleChatMessage(
                     message = message,
                     userMessageColor = userMessageColor,
+                    userMessageLiquidGlassEnabled = cursorUserBubbleLiquidGlass,
                     aiMessageColor = aiMessageColor,
                     userTextColor = userTextColor,
                     aiTextColor = aiTextColor,

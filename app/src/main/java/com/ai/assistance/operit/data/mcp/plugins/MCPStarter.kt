@@ -181,17 +181,15 @@ class MCPStarter(private val context: Context) {
 
             val serviceType = pluginInfo.type
 
-            // For local plugins, check if they are deployed
+            // For local plugins, ensure the runtime workspace exists before spawn
             if (serviceType == "local") {
-                val isDeployed = mcpLocalServer.isPluginDeployed(pluginId)
-                if (!isDeployed) {
-                    // 自动部署未部署的插件
+                val isRuntimeReady = mcpLocalServer.isPluginRuntimeReady(pluginId)
+                if (!isRuntimeReady) {
+                    // 自动准备运行目录
                     statusCallback(StartStatus.InProgress(context.getString(R.string.plugin_deploying, pluginId)))
-                    AppLogger.d(TAG, "插件 $pluginId 未部署，开始自动部署")
+                    AppLogger.d(TAG, "插件 $pluginId 运行目录未就绪，开始自动部署")
 
-                    val pluginPath = mcpRepository.installedPluginIds.first()
-                        .find { it == pluginId }
-                        ?.let { mcpRepository.getInstalledPluginPath(it) }
+                    val pluginPath = mcpRepository.getInstalledPluginPath(pluginId)
 
                     if (pluginPath == null) {
                         statusCallback(StartStatus.Error(context.getString(R.string.plugin_cannot_get_path, pluginId)))
@@ -357,7 +355,7 @@ class MCPStarter(private val context: Context) {
 
             // Use MCPBridge instance
             val bridge = MCPBridge.getInstance(context)
-            val termuxPluginDir = "~/mcp_plugins/${pluginId.split("/").last()}"
+            val termuxPluginDir = mcpLocalServer.getPluginRuntimeDirectory(pluginId)
 
             // Register MCP service
             val registerResult =
@@ -652,7 +650,7 @@ class MCPStarter(private val context: Context) {
 
             if (pluginInfo.type == "local") {
                 val mcpLocalServer = MCPLocalServer.getInstance(context)
-                if (!mcpLocalServer.isPluginDeployed(pluginId)) {
+                if (!mcpLocalServer.isPluginRuntimeReady(pluginId)) {
                     val deployer = MCPDeployer(context)
                     val pluginPath = mcpRepository.getInstalledPluginPath(pluginId) ?: return null
                     progressListener?.onPluginLog(pluginId, context.getString(R.string.plugin_auto_deploy))
@@ -727,7 +725,7 @@ class MCPStarter(private val context: Context) {
                         val config = parseConfigJson(pluginConfig)
                         val extractedServerName = extractServerNameFromConfig(pluginConfig) ?: serverName
                         val serverConfig = config?.mcpServers?.get(extractedServerName) ?: return null
-                        val termuxPluginDir = "~/mcp_plugins/${pluginId.split("/").last()}"
+                        val termuxPluginDir = mcpLocalServer.getPluginRuntimeDirectory(pluginId)
 
                         actualServiceName = extractedServerName
 
@@ -945,10 +943,10 @@ class MCPStarter(private val context: Context) {
             val mcpRepository = MCPRepository(context)
             val mcpLocalServer = MCPLocalServer.getInstance(context)
 
-            // Get deployed plugins
+            // Get plugins whose runtime workspaces are ready
             val pluginList = mcpRepository.installedPluginIds.first()
-            val deployedPlugins = pluginList.filter { pluginId ->
-                mcpLocalServer.isPluginDeployed(pluginId)
+            val runtimeReadyPlugins = pluginList.filter { pluginId ->
+                mcpLocalServer.isPluginRuntimeReady(pluginId)
             }
 
             // Get registered services
@@ -969,7 +967,7 @@ class MCPStarter(private val context: Context) {
             }
 
             // Verify each plugin
-            for (pluginId in deployedPlugins) {
+            for (pluginId in runtimeReadyPlugins) {
                 val pluginConfig = mcpLocalServer.getPluginConfig(pluginId)
                 val serverName =
                     extractServerNameFromConfig(pluginConfig)

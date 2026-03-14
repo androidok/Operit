@@ -346,9 +346,7 @@ private fun LazyListScope.renderFolderTree(
                 onToggleExpand = { onToggleExpand(node.fullPath) },
                 onClick = { onFolderSelected(node.fullPath) },
                 onLongClick = { onFolderLongClick(node.fullPath) },
-                modifier = Modifier.animateItemPlacement(
-                    animationSpec = tween(durationMillis = 300)
-                )
+                modifier = Modifier.animateItem(placementSpec = tween(durationMillis = 300))
             )
         }
 

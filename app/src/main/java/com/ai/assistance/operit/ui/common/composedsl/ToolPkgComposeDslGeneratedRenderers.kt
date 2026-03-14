@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -90,6 +91,18 @@ internal fun ColumnScope.renderWeightedNodeChildren(
             )
         }
     }
+}
+
+private fun ToolPkgComposeDslNode.autoScrollSignature(): Int {
+    var result = type.hashCode()
+    result = 31 * result + (props["key"]?.hashCode() ?: 0)
+    result = 31 * result + (props["text"]?.hashCode() ?: 0)
+    result = 31 * result + (props["value"]?.hashCode() ?: 0)
+    result = 31 * result + children.size
+    children.forEach { child ->
+        result = 31 * result + child.autoScrollSignature()
+    }
+    return result
 }
 
 @Composable
@@ -198,9 +211,28 @@ internal fun renderLazyColumnNode(
 ) {
     val props = node.props
     val spacing = props.dp("spacing")
+    val reverseLayout = props.bool("reverseLayout", false)
+    val autoScrollToEnd = props.bool("autoScrollToEnd", false)
+    val listState = rememberLazyListState()
+    val autoScrollSignature =
+        if (!autoScrollToEnd) {
+            0
+        } else {
+            node.children.fold(1) { acc, child -> 31 * acc + child.autoScrollSignature() }
+        }
+
+    LaunchedEffect(nodePath, autoScrollToEnd, reverseLayout, autoScrollSignature) {
+        if (autoScrollToEnd && node.children.isNotEmpty()) {
+            listState.scrollToItem(if (reverseLayout) 0 else node.children.lastIndex)
+        }
+    }
+
     LazyColumn(
+        state = listState,
         modifier = applyCommonModifier(Modifier.fillMaxSize(), props),
-        verticalArrangement = Arrangement.spacedBy(spacing),
+        horizontalAlignment = props.horizontalAlignment("horizontalAlignment"),
+        reverseLayout = reverseLayout,
+        verticalArrangement = props.verticalArrangement("verticalArrangement", spacing),
         contentPadding = PaddingValues(0.dp)
     ) {
         itemsIndexed(node.children) { index, child ->
@@ -510,6 +542,19 @@ internal fun renderCardNode(
 }
 
 @Composable
+internal fun renderMaterialThemeNode(
+    node: ToolPkgComposeDslNode,
+    onAction: (String, Any?) -> Unit,
+    nodePath: String
+) {
+    val props = node.props
+    androidx.compose.material3.MaterialTheme(
+    ) {
+        renderNodeChildren(node, onAction, nodePath)
+    }
+}
+
+@Composable
 internal fun renderSurfaceNode(
     node: ToolPkgComposeDslNode,
     onAction: (String, Any?) -> Unit,
@@ -740,6 +785,29 @@ internal fun renderFilledIconButtonNode(
 }
 
 @Composable
+internal fun renderFilledIconToggleButtonNode(
+    node: ToolPkgComposeDslNode,
+    onAction: (String, Any?) -> Unit,
+    nodePath: String
+) {
+    val props = node.props
+    val onCheckedChangeActionId = ToolPkgComposeDslParser.extractActionId(props["onCheckedChange"])
+    androidx.compose.material3.FilledIconToggleButton(
+        checked = props.bool("checked", false),
+        onCheckedChange = { checked ->
+            if (!onCheckedChangeActionId.isNullOrBlank()) {
+                onAction(onCheckedChangeActionId, checked)
+            }
+        },
+        modifier = applyCommonModifier(Modifier, props),
+        enabled = props.bool("enabled", true),
+        shape = props.shapeOrNull() ?: androidx.compose.foundation.shape.RoundedCornerShape(0.dp)
+    ) {
+        renderNodeChildren(node, onAction, nodePath)
+    }
+}
+
+@Composable
 internal fun renderFilledTonalButtonNode(
     node: ToolPkgComposeDslNode,
     onAction: (String, Any?) -> Unit,
@@ -788,6 +856,29 @@ internal fun renderFilledTonalIconButtonNode(
                 contentDescription = null
             )
         }
+    }
+}
+
+@Composable
+internal fun renderFilledTonalIconToggleButtonNode(
+    node: ToolPkgComposeDslNode,
+    onAction: (String, Any?) -> Unit,
+    nodePath: String
+) {
+    val props = node.props
+    val onCheckedChangeActionId = ToolPkgComposeDslParser.extractActionId(props["onCheckedChange"])
+    androidx.compose.material3.FilledTonalIconToggleButton(
+        checked = props.bool("checked", false),
+        onCheckedChange = { checked ->
+            if (!onCheckedChangeActionId.isNullOrBlank()) {
+                onAction(onCheckedChangeActionId, checked)
+            }
+        },
+        modifier = applyCommonModifier(Modifier, props),
+        enabled = props.bool("enabled", true),
+        shape = props.shapeOrNull() ?: androidx.compose.foundation.shape.RoundedCornerShape(0.dp)
+    ) {
+        renderNodeChildren(node, onAction, nodePath)
     }
 }
 
@@ -882,19 +973,6 @@ internal fun renderLargeFloatingActionButtonNode(
 }
 
 @Composable
-internal fun renderMaterialThemeNode(
-    node: ToolPkgComposeDslNode,
-    onAction: (String, Any?) -> Unit,
-    nodePath: String
-) {
-    val props = node.props
-    androidx.compose.material3.MaterialTheme(
-    ) {
-        renderNodeChildren(node, onAction, nodePath)
-    }
-}
-
-@Composable
 internal fun renderModalDrawerSheetNode(
     node: ToolPkgComposeDslNode,
     onAction: (String, Any?) -> Unit,
@@ -906,6 +984,24 @@ internal fun renderModalDrawerSheetNode(
         drawerContainerColor = props.colorOrNull("drawerContainerColor") ?: Color.Unspecified,
         drawerContentColor = props.colorOrNull("drawerContentColor") ?: Color.Unspecified,
         drawerTonalElevation = props.dp("drawerTonalElevation")
+    ) {
+        renderNodeChildren(node, onAction, nodePath)
+    }
+}
+
+@Composable
+internal fun renderModalWideNavigationRailNode(
+    node: ToolPkgComposeDslNode,
+    onAction: (String, Any?) -> Unit,
+    nodePath: String
+) {
+    val props = node.props
+    val spacing = props.dp("spacing")
+    androidx.compose.material3.ModalWideNavigationRail(
+        modifier = applyCommonModifier(Modifier, props),
+        hideOnCollapse = props.bool("hideOnCollapse", false),
+        expandedHeaderTopPadding = props.dp("expandedHeaderTopPadding"),
+        arrangement = props.verticalArrangement("verticalArrangement", spacing)
     ) {
         renderNodeChildren(node, onAction, nodePath)
     }
@@ -1012,6 +1108,29 @@ internal fun renderOutlinedIconButtonNode(
 }
 
 @Composable
+internal fun renderOutlinedIconToggleButtonNode(
+    node: ToolPkgComposeDslNode,
+    onAction: (String, Any?) -> Unit,
+    nodePath: String
+) {
+    val props = node.props
+    val onCheckedChangeActionId = ToolPkgComposeDslParser.extractActionId(props["onCheckedChange"])
+    androidx.compose.material3.OutlinedIconToggleButton(
+        checked = props.bool("checked", false),
+        onCheckedChange = { checked ->
+            if (!onCheckedChangeActionId.isNullOrBlank()) {
+                onAction(onCheckedChangeActionId, checked)
+            }
+        },
+        modifier = applyCommonModifier(Modifier, props),
+        enabled = props.bool("enabled", true),
+        shape = props.shapeOrNull() ?: androidx.compose.foundation.shape.RoundedCornerShape(0.dp)
+    ) {
+        renderNodeChildren(node, onAction, nodePath)
+    }
+}
+
+@Composable
 internal fun renderPermanentDrawerSheetNode(
     node: ToolPkgComposeDslNode,
     onAction: (String, Any?) -> Unit,
@@ -1050,6 +1169,22 @@ internal fun renderScaffoldNode(
 ) {
     val props = node.props
     androidx.compose.material3.Scaffold(
+        modifier = applyCommonModifier(Modifier, props),
+        containerColor = props.colorOrNull("containerColor") ?: Color.Unspecified,
+        contentColor = props.colorOrNull("contentColor") ?: Color.Unspecified
+    ) {
+        renderNodeChildren(node, onAction, nodePath)
+    }
+}
+
+@Composable
+internal fun renderShortNavigationBarNode(
+    node: ToolPkgComposeDslNode,
+    onAction: (String, Any?) -> Unit,
+    nodePath: String
+) {
+    val props = node.props
+    androidx.compose.material3.ShortNavigationBar(
         modifier = applyCommonModifier(Modifier, props),
         containerColor = props.colorOrNull("containerColor") ?: Color.Unspecified,
         contentColor = props.colorOrNull("contentColor") ?: Color.Unspecified
@@ -1159,6 +1294,35 @@ internal fun renderVerticalDividerNode(
         thickness = props.dp("thickness"),
         color = props.colorOrNull("color") ?: Color.Unspecified
     )
+}
+
+@Composable
+internal fun renderVerticalDragHandleNode(
+    node: ToolPkgComposeDslNode,
+    onAction: (String, Any?) -> Unit,
+    nodePath: String
+) {
+    val props = node.props
+    androidx.compose.material3.VerticalDragHandle(
+        modifier = applyCommonModifier(Modifier, props)
+    )
+}
+
+@Composable
+internal fun renderWideNavigationRailNode(
+    node: ToolPkgComposeDslNode,
+    onAction: (String, Any?) -> Unit,
+    nodePath: String
+) {
+    val props = node.props
+    val spacing = props.dp("spacing")
+    androidx.compose.material3.WideNavigationRail(
+        modifier = applyCommonModifier(Modifier, props),
+        shape = props.shapeOrNull() ?: androidx.compose.foundation.shape.RoundedCornerShape(0.dp),
+        arrangement = props.verticalArrangement("verticalArrangement", spacing)
+    ) {
+        renderNodeChildren(node, onAction, nodePath)
+    }
 }
 
 @Composable

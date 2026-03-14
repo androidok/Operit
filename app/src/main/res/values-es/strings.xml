@@ -568,6 +568,8 @@
     <string name="theme_chat_input_transparent_title">Configuración del cuadro de entrada</string>
     <string name="theme_chat_input_transparent">Cuadro de entrada transparente</string>
     <string name="theme_chat_input_transparent_desc">Cuando está activado, el cuadro de entrada de chat se volverá transparente</string>
+    <string name="theme_chat_input_liquid_glass">Cuadro de entrada de cristal líquido</string>
+    <string name="theme_chat_input_liquid_glass_desc">Cuando está activado, el cuadro de entrada transparente usará un efecto de cristal líquido estilo iOS</string>
     <string name="theme_appbar_content_color_title">Color del contenido de la barra de aplicaciones</string>
     <string name="theme_force_appbar_content_color">Forzar uso del color del contenido de la barra de aplicaciones</string>
     <string name="theme_force_appbar_content_color_desc">Cuando está activado, el color del título y los iconos de la barra de aplicaciones será fijo, sin verse afectado por el fondo</string>
@@ -582,6 +584,8 @@
     <string name="theme_background_blur">Desenfoque de fondo</string>
     <string name="theme_background_blur_desc">Añadir un efecto de desenfoque gaussiano a la imagen o video de fondo</string>
     <string name="theme_background_blur_radius">Radio de desenfoque</string>
+    <string name="chat_style_cursor_user_bubble_liquid_glass">Cristal líquido para el globo de usuario en modo comando</string>
+    <string name="chat_style_cursor_user_bubble_liquid_glass_desc">Cuando está activado, el fondo del globo de usuario en modo comando usará un efecto de cristal líquido estilo iOS</string>
     
     <!-- Toolbox Categories -->
     <string name="tool_category_all">Todas las herramientas</string>
