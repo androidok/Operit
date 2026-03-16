@@ -1108,7 +1108,7 @@ class StandardChatManagerTool(private val context: Context) {
             }
 
             // 切换对话
-            core.switchChat(chatId)
+            core.switchChatLocal(chatId)
             
             // 等待切换完成（最多等待1秒）
             var attempts = 0

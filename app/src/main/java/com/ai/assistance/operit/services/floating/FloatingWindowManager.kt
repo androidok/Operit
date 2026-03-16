@@ -148,6 +148,13 @@ class FloatingWindowManager(
         private const val FULLSCREEN_BLUR_RADIUS_DP = 48
     }
 
+    private fun resolveSoftInputModeForMode(mode: FloatingMode): Int {
+        return when (mode) {
+            FloatingMode.FULLSCREEN -> WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING
+            else -> WindowManager.LayoutParams.SOFT_INPUT_STATE_UNSPECIFIED
+        }
+    }
+
     @SuppressLint("ClickableViewAccessibility")
     fun show() {
         if (isViewAdded) return
@@ -652,6 +659,7 @@ class FloatingWindowManager(
             }
         }
 
+        params.softInputMode = resolveSoftInputModeForMode(state.currentMode.value)
         params.x = state.x
         params.y = state.y
 
@@ -975,6 +983,7 @@ class FloatingWindowManager(
                         params.y = target.y
                         params.flags = target.flags
                         params.gravity = target.gravity
+                        params.softInputMode = resolveSoftInputModeForMode(newMode)
                         applyFullscreenBlur(params, target.blurEnabled)
                         
                         // Sync state with params
@@ -997,6 +1006,7 @@ class FloatingWindowManager(
                         params.y = target.y
                         params.flags = target.flags
                         params.gravity = target.gravity
+                        params.softInputMode = resolveSoftInputModeForMode(newMode)
                         applyFullscreenBlur(params, target.blurEnabled)
                         
                         // Sync state with params
@@ -1016,6 +1026,7 @@ class FloatingWindowManager(
                     params.y = target.y
                     params.flags = target.flags
                     params.gravity = target.gravity
+                    params.softInputMode = resolveSoftInputModeForMode(newMode)
                     applyFullscreenBlur(params, target.blurEnabled)
                     
                     // Sync state with params
@@ -1037,6 +1048,7 @@ class FloatingWindowManager(
                 params.y = target.y
                 params.flags = target.flags
                 params.gravity = target.gravity
+                params.softInputMode = resolveSoftInputModeForMode(newMode)
                 applyFullscreenBlur(params, target.blurEnabled)
 
                 // Sync state with params
@@ -1116,13 +1128,8 @@ class FloatingWindowManager(
                                     WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH
                 }
 
-                // 为全屏模式特殊处理软键盘，以避免遮挡UI
-                if (state.currentMode.value == FloatingMode.FULLSCREEN) {
-                    @Suppress("DEPRECATION")
-                    params.softInputMode =
-                            WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE or
-                                    WindowManager.LayoutParams.SOFT_INPUT_STATE_HIDDEN
-                }
+                @Suppress("DEPRECATION")
+                params.softInputMode = resolveSoftInputModeForMode(state.currentMode.value)
             }
 
             // Step 2: 延迟请求焦点并显示键盘
@@ -1162,8 +1169,7 @@ class FloatingWindowManager(
                             params.flags and
                                     WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH.inv()
                 }
-                params.softInputMode =
-                        WindowManager.LayoutParams.SOFT_INPUT_STATE_UNSPECIFIED
+                params.softInputMode = resolveSoftInputModeForMode(state.currentMode.value)
             }
             val lp = view.layoutParams as? WindowManager.LayoutParams
             AppLogger.d(

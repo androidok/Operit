@@ -10,6 +10,7 @@ import com.ai.assistance.operit.data.model.InputProcessingState
 import com.ai.assistance.operit.data.model.PromptFunctionType
 import com.ai.assistance.operit.services.core.ApiConfigDelegate
 import com.ai.assistance.operit.services.core.AttachmentDelegate
+import com.ai.assistance.operit.services.core.ChatSelectionMode
 import com.ai.assistance.operit.services.core.ChatHistoryDelegate
 import com.ai.assistance.operit.services.core.MessageCoordinationDelegate
 import com.ai.assistance.operit.services.core.MessageProcessingDelegate
@@ -30,7 +31,8 @@ import kotlinx.coroutines.flow.StateFlow
  */
 class ChatServiceCore(
     private val context: Context,
-    private val coroutineScope: CoroutineScope
+    private val coroutineScope: CoroutineScope,
+    private val selectionMode: ChatSelectionMode = ChatSelectionMode.FOLLOW_GLOBAL
 ) {
     companion object {
         private const val TAG = "ChatServiceCore"
@@ -51,16 +53,17 @@ class ChatServiceCore(
     // 初始化状态
     private var initialized = false
 
-    init {
-        AppLogger.d(TAG, "ChatServiceCore 初始化")
-        initializeDelegates()
-    }
-
     // 回调：当 EnhancedAIService 初始化或更新时
     private var onEnhancedAiServiceReady: ((EnhancedAIService) -> Unit)? = null
     
     // 额外的 onTurnComplete 回调（用于悬浮窗通知应用等场景）
     private var additionalOnTurnComplete: ((String?, Int, Int, Int) -> Unit)? = null
+    private var uiBridge: ChatServiceUiBridge = EmptyChatServiceUiBridge
+
+    init {
+        AppLogger.d(TAG, "ChatServiceCore 初始化")
+        initializeDelegates()
+    }
     
     private fun initializeDelegates() {
         // 初始化 UI 状态委托
@@ -96,6 +99,7 @@ class ChatServiceCore(
         chatHistoryDelegate = ChatHistoryDelegate(
             context = context,
             coroutineScope = coroutineScope,
+            selectionMode = selectionMode,
             onTokenStatisticsLoaded = { chatId, inputTokens, outputTokens, windowSize ->
                 tokenStatisticsDelegate.setActiveChatId(chatId)
                 tokenStatisticsDelegate.setTokenCounts(chatId, inputTokens, outputTokens, windowSize)
@@ -160,8 +164,7 @@ class ChatServiceCore(
             getIsAutoReadEnabled = {
                 apiConfigDelegate.enableAutoRead.value
             },
-            speakMessage = { text, _ ->
-                // TTS 功能需要在外部实现
+            speakMessageHandler = { text, _ ->
                 AppLogger.d(TAG, "朗读消息: $text")
             },
             onTokenLimitExceeded = { chatId ->
@@ -180,10 +183,7 @@ class ChatServiceCore(
             attachmentDelegate = attachmentDelegate,
             uiStateDelegate = uiStateDelegate,
             getEnhancedAiService = { enhancedAiService },
-            updateWebServerForCurrentChat = { _ -> }, // 空实现
-            resetAttachmentPanelState = { }, // 空实现
-            clearReplyToMessage = { }, // 空实现
-            getReplyToMessage = { null } // 总是返回 null
+            uiBridge = uiBridge
         )
 
         initialized = true
@@ -345,6 +345,9 @@ class ChatServiceCore(
     val inputProcessingStateByChatId: StateFlow<Map<String, InputProcessingState>>
         get() = messageProcessingDelegate.inputProcessingStateByChatId
 
+    val currentTurnToolInvocationCountByChatId: StateFlow<Map<String, Int>>
+        get() = messageProcessingDelegate.currentTurnToolInvocationCountByChatId
+
     val scrollToBottomEvent: SharedFlow<Unit>
         get() = messageProcessingDelegate.scrollToBottomEvent
 
@@ -417,6 +420,16 @@ class ChatServiceCore(
     /** 获取 UiStateDelegate 实例 */
     fun getUiStateDelegate(): UiStateDelegate = uiStateDelegate
 
+    fun getApiConfigDelegate(): ApiConfigDelegate = apiConfigDelegate
+
+    fun getTokenStatisticsDelegate(): TokenStatisticsDelegate = tokenStatisticsDelegate
+
+    fun getChatHistoryDelegate(): ChatHistoryDelegate = chatHistoryDelegate
+
+    fun getMessageProcessingDelegate(): MessageProcessingDelegate = messageProcessingDelegate
+
+    fun getMessageCoordinationDelegate(): MessageCoordinationDelegate = messageCoordinationDelegate
+
     /** 获取 EnhancedAIService 实例 */
     fun getEnhancedAiService(): EnhancedAIService? = enhancedAiService
 
@@ -433,6 +446,19 @@ class ChatServiceCore(
     /** 设置额外的 onTurnComplete 回调（用于悬浮窗通知应用等场景） */
     fun setAdditionalOnTurnComplete(callback: ((chatId: String?, inputTokens: Int, outputTokens: Int, windowSize: Int) -> Unit)?) {
         additionalOnTurnComplete = callback
+    }
+
+    fun setUiBridge(uiBridge: ChatServiceUiBridge) {
+        this.uiBridge = uiBridge
+        if (::messageCoordinationDelegate.isInitialized) {
+            messageCoordinationDelegate.setUiBridge(uiBridge)
+        }
+    }
+
+    fun setSpeakMessageHandler(handler: (String, Boolean) -> Unit) {
+        if (::messageProcessingDelegate.isInitialized) {
+            messageProcessingDelegate.setSpeakMessageHandler(handler)
+        }
     }
     
     /** 重新加载聊天消息（智能合并） */

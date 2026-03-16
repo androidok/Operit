@@ -63,7 +63,6 @@ import com.ai.assistance.operit.data.model.CharacterCardChatModelBindingMode
 import com.ai.assistance.operit.data.model.FunctionType
 import com.ai.assistance.operit.data.model.ModelConfigSummary
 import com.ai.assistance.operit.data.model.PreferenceProfile
-import com.ai.assistance.operit.data.model.PromptProfile
 import com.ai.assistance.operit.data.preferences.CharacterCardManager
 import com.ai.assistance.operit.data.preferences.ActivePromptManager
 import com.ai.assistance.operit.data.model.ActivePrompt
@@ -74,7 +73,6 @@ import com.ai.assistance.operit.data.model.PromptFunctionType
 import com.ai.assistance.operit.data.model.getModelByIndex
 import com.ai.assistance.operit.data.model.getModelList
 import com.ai.assistance.operit.data.model.getValidModelIndex
-import com.ai.assistance.operit.data.preferences.PromptPreferencesManager
 import com.ai.assistance.operit.data.preferences.UserPreferencesManager
 import com.ai.assistance.operit.ui.features.chat.components.style.input.common.InputMenuToggleHookParams
 import com.ai.assistance.operit.ui.features.chat.components.style.input.common.InputMenuTogglePluginRegistry
@@ -1751,140 +1749,6 @@ private fun ModelSelectorItem(
                         }
                     }
                     if (configSummaries.last() != config) {
-                        Spacer(modifier = Modifier.height(4.dp))
-                    }
-                }
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(30.dp)
-                        .clickable(onClick = onManageClick),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(stringResource(R.string.manage_config), color = MaterialTheme.colorScheme.primary, fontSize = 13.sp)
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun PromptSelectorItem(
-    promptProfiles: List<PromptProfile>,
-    currentProfileId: String,
-    onSelectPrompt: (String) -> Unit,
-    expanded: Boolean,
-    onExpandedChange: (Boolean) -> Unit,
-    onManageClick: () -> Unit,
-    onInfoClick: () -> Unit
-) {
-    val currentProfile = promptProfiles.find { it.id == currentProfileId }
-    
-    val currentProfileName = currentProfile?.name ?: stringResource(R.string.not_selected)
-    val expandStateDesc = if (expanded) stringResource(R.string.expanded) else stringResource(R.string.collapsed)
-    val accessibilityDesc = "${stringResource(R.string.prompt)}: $currentProfileName, $expandStateDesc"
-
-    Column(modifier = Modifier.fillMaxWidth()) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(36.dp)
-                .semantics {
-                    contentDescription = accessibilityDesc
-                }
-                .clickable { onExpandedChange(!expanded) }
-                .padding(horizontal = 12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(
-                imageVector = Icons.AutoMirrored.Outlined.Message,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                modifier = Modifier
-                    .size(16.dp)
-                    .clearAndSetSemantics {}
-            )
-            // 详情按钮（左侧）
-            IconButton(onClick = onInfoClick, modifier = Modifier.size(24.dp)) {
-                Icon(
-                    imageVector = Icons.Outlined.Info,
-                    contentDescription = stringResource(R.string.details),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                    modifier = Modifier.size(16.dp)
-                )
-            }
-            Row(
-                modifier = Modifier.weight(1f).padding(horizontal = 8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = stringResource(R.string.prompt) + ":",
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Normal,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.clearAndSetSemantics {}
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = currentProfile?.name ?: stringResource(R.string.not_selected),
-                    fontSize = 13.sp,
-                    color = MaterialTheme.colorScheme.primary,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.clearAndSetSemantics {}
-                )
-            }
-            Icon(
-                imageVector = if (expanded) Icons.Filled.KeyboardArrowUp else Icons.Filled.KeyboardArrowDown,
-                contentDescription = null,
-                modifier = Modifier
-                    .size(20.dp)
-                    .clearAndSetSemantics {},
-                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-            )
-        }
-
-        if (expanded) {
-            Column(
-                    modifier =
-                            Modifier.fillMaxWidth()
-                                    .background(
-                                            MaterialTheme.colorScheme.surface.copy(alpha = 0.5f)
-                                    )
-                    .padding(horizontal = 12.dp, vertical = 8.dp)
-            ) {
-                promptProfiles.forEach { profile ->
-                    val isSelected = profile.id == currentProfileId
-                    Box(
-                            modifier =
-                                    Modifier.fillMaxWidth()
-                            .clip(RoundedCornerShape(4.dp))
-                                            .background(
-                                                    if (isSelected)
-                                                            MaterialTheme.colorScheme.primary.copy(
-                                                                    alpha = 0.1f
-                                                            )
-                                                    else Color.Transparent
-                                            )
-                            .clickable {
-                                onSelectPrompt(profile.id)
-                                onExpandedChange(false)
-                            }
-                            .padding(horizontal = 8.dp, vertical = 6.dp)
-                    ) {
-                        Text(
-                            text = profile.name,
-                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                color =
-                                        if (isSelected) MaterialTheme.colorScheme.primary
-                                        else MaterialTheme.colorScheme.onSurface,
-                            fontSize = 13.sp,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-                    if (promptProfiles.last() != profile) {
                         Spacer(modifier = Modifier.height(4.dp))
                     }
                 }

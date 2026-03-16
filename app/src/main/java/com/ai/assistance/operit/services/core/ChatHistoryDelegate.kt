@@ -28,6 +28,7 @@ import kotlinx.coroutines.withTimeoutOrNull
 class ChatHistoryDelegate(
         private val context: Context,
         private val coroutineScope: CoroutineScope,
+        private val selectionMode: ChatSelectionMode = ChatSelectionMode.FOLLOW_GLOBAL,
         private val onTokenStatisticsLoaded: (chatId: String, inputTokens: Int, outputTokens: Int, windowSize: Int) -> Unit,
         private val getEnhancedAiService: () -> EnhancedAIService?,
         private val ensureAiServiceAvailable: () -> Unit = {}, // 确保AI服务可用的回调
@@ -94,7 +95,9 @@ class ChatHistoryDelegate(
                     val exists = chatHistoryManager.chatExists(currentId)
                     if (!exists) {
                         AppLogger.w(TAG, "当前聊天已不存在，清除currentChatId: $currentId")
-                        chatHistoryManager.clearCurrentChatId()
+                        if (selectionMode == ChatSelectionMode.FOLLOW_GLOBAL) {
+                            chatHistoryManager.clearCurrentChatId()
+                        }
                         _currentChatId.value = null
                         _chatHistory.value = emptyList()
                     }
@@ -102,23 +105,47 @@ class ChatHistoryDelegate(
             }
         }
 
-        // 持续监听当前聊天ID的变化，实现跨界面同步
-        coroutineScope.launch {
-            chatHistoryManager.currentChatIdFlow.collect { chatId ->
-                if (chatId != null && chatId != _currentChatId.value) {
-                    if (!chatHistoryManager.chatExists(chatId)) {
-                        AppLogger.w(TAG, "currentChatId不存在于数据库，已清除: $chatId")
-                        chatHistoryManager.clearCurrentChatId()
-                        _currentChatId.value = null
-                        _chatHistory.value = emptyList()
-                        return@collect
+        when (selectionMode) {
+            ChatSelectionMode.FOLLOW_GLOBAL -> {
+                coroutineScope.launch {
+                    chatHistoryManager.currentChatIdFlow.collect { chatId ->
+                        if (chatId != null && chatId != _currentChatId.value) {
+                            if (!chatHistoryManager.chatExists(chatId)) {
+                                AppLogger.w(TAG, "currentChatId不存在于数据库，已清除: $chatId")
+                                chatHistoryManager.clearCurrentChatId()
+                                _currentChatId.value = null
+                                _chatHistory.value = emptyList()
+                                return@collect
+                            }
+                            AppLogger.d(TAG, "检测到聊天ID变化: ${_currentChatId.value} -> $chatId")
+                            _currentChatId.value = chatId
+                            loadChatMessages(chatId)
+                        } else if (chatId == null && _currentChatId.value == null) {
+                            AppLogger.d(TAG, "首次初始化，没有当前聊天")
+                        }
                     }
-                    AppLogger.d(TAG, "检测到聊天ID变化: ${_currentChatId.value} -> $chatId")
-                    _currentChatId.value = chatId
-                    loadChatMessages(chatId)
-                } else if (chatId == null && _currentChatId.value == null) {
-                    // 首次初始化且没有当前聊天ID
-                    AppLogger.d(TAG, "首次初始化，没有当前聊天")
+                }
+            }
+            ChatSelectionMode.LOCAL_ONLY -> {
+                coroutineScope.launch {
+                    val initialChatId =
+                        withTimeoutOrNull(300) {
+                            chatHistoryManager.currentChatIdFlow.first { it != null }
+                        } ?: chatHistoryManager.currentChatIdFlow.value
+
+                    if (initialChatId == null) {
+                        AppLogger.d(TAG, "本地会话初始化时没有 currentChatId")
+                        return@launch
+                    }
+
+                    if (!chatHistoryManager.chatExists(initialChatId)) {
+                        AppLogger.w(TAG, "初始 currentChatId 不存在，跳过本地会话初始化: $initialChatId")
+                        return@launch
+                    }
+
+                    AppLogger.d(TAG, "本地会话初始化 currentChatId: $initialChatId")
+                    _currentChatId.value = initialChatId
+                    loadChatMessages(initialChatId)
                 }
             }
         }
@@ -368,13 +395,16 @@ class ChatHistoryDelegate(
                     null  // 群组模式下不使用角色卡名称
                 }
 
+            val shouldSyncCurrentChatToGlobal =
+                selectionMode == ChatSelectionMode.FOLLOW_GLOBAL && setAsCurrentChat
+
             // 创建新对话，如果有当前对话则继承其分组，并绑定角色卡
             val newChat = chatHistoryManager.createNewChat(
                 group = group,
                 inheritGroupFromChatId = inheritGroupFromChatId,
                 characterCardName = effectiveCharacterCardName,
                 characterGroupId = characterGroupId,
-                setAsCurrentChat = setAsCurrentChat
+                setAsCurrentChat = shouldSyncCurrentChatToGlobal
             )
 
             // --- 新增：检查并添加开场白（群组模式跳过） ---
@@ -399,13 +429,15 @@ class ChatHistoryDelegate(
                 }
             }
             
-            // 现在通过标准流程切换到新对话，让collector处理消息加载
-            // 这样可以避免竞态条件
             if (setAsCurrentChat) {
-                chatHistoryManager.setCurrentChatId(newChat.id)
-                // _currentChatId.value will be updated by the collector
-                // loadChatMessages will also be called by the collector
-
+                if (selectionMode == ChatSelectionMode.FOLLOW_GLOBAL) {
+                    // FOLLOW_GLOBAL 由 currentChatId 的 collector 负责驱动切换与加载。
+                    chatHistoryManager.setCurrentChatId(newChat.id)
+                } else {
+                    // LOCAL_ONLY 不写回全局 currentChatId，只切换悬浮窗自己的本地会话。
+                    _currentChatId.value = newChat.id
+                    loadChatMessages(newChat.id)
+                }
                 onTokenStatisticsLoaded(newChat.id, 0, 0, 0)
             }
         }

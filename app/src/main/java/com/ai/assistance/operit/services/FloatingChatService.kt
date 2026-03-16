@@ -24,6 +24,8 @@ import androidx.lifecycle.Lifecycle
 import com.ai.assistance.operit.core.application.ForegroundServiceCompat
 import com.ai.assistance.operit.R
 import com.ai.assistance.operit.api.chat.AIForegroundService
+import com.ai.assistance.operit.api.chat.ChatRuntimeHolder
+import com.ai.assistance.operit.api.chat.ChatRuntimeSlot
 import com.ai.assistance.operit.api.speech.SpeechServiceFactory
 import com.ai.assistance.operit.api.voice.VoiceServiceFactory
 import com.ai.assistance.operit.data.model.AttachmentInfo
@@ -145,54 +147,20 @@ class FloatingChatService : Service(), FloatingWindowCallback {
 
     inner class LocalBinder : Binder() {
         private val closeCallbacks = mutableListOf<() -> Unit>()
-        private var reloadCallback: (() -> Unit)? = null
-        private var chatSyncCallback: ((String?, List<ChatMessage>) -> Unit)? = null
-        private var chatStatsCallback: ((String?, Int, Int, Int) -> Unit)? = null
-        
+
         fun getService(): FloatingChatService = this@FloatingChatService
         fun getChatCore(): ChatServiceCore = chatCore
-        
+
         fun setCloseCallback(callback: () -> Unit) {
             closeCallbacks.add(callback)
         }
-        
+
         fun notifyClose() {
             closeCallbacks.toList().forEach { it.invoke() }
-        }
-        
-        fun setReloadCallback(callback: () -> Unit) {
-            this.reloadCallback = callback
-        }
-        
-        fun notifyReload() {
-            reloadCallback?.invoke()
-        }
-
-        fun setChatSyncCallback(callback: (chatId: String?, messages: List<ChatMessage>) -> Unit) {
-            this.chatSyncCallback = callback
-        }
-
-        fun notifyChatSync(chatId: String?, messages: List<ChatMessage>): Boolean {
-            val cb = chatSyncCallback ?: return false
-            cb(chatId, messages)
-            return true
-        }
-
-        fun setChatStatsCallback(callback: (chatId: String?, inputTokens: Int, outputTokens: Int, windowSize: Int) -> Unit) {
-            this.chatStatsCallback = callback
-        }
-
-        fun notifyChatStats(chatId: String?, inputTokens: Int, outputTokens: Int, windowSize: Int): Boolean {
-            val cb = chatStatsCallback ?: return false
-            cb(chatId, inputTokens, outputTokens, windowSize)
-            return true
         }
 
         fun clearCallbacks() {
             closeCallbacks.clear()
-            reloadCallback = null
-            chatSyncCallback = null
-            chatStatsCallback = null
         }
     }
 
@@ -251,21 +219,11 @@ class FloatingChatService : Service(), FloatingWindowCallback {
 
         try {
             acquireWakeLock()
-            
-            // 初始化 ChatServiceCore
-            chatCore = ChatServiceCore(context = this, coroutineScope = serviceScope)
+
+            chatCore = ChatRuntimeHolder.getInstance(applicationContext).getCore(ChatRuntimeSlot.FLOATING)
+            chatCore.setUiBridge(EmptyChatServiceUiBridge)
             AppLogger.d(TAG, "ChatServiceCore 已初始化")
-            
-            // 设置额外的 onTurnComplete 回调，用于通知应用重新加载消息
-            chatCore.setAdditionalOnTurnComplete { chatId, inputTokens, outputTokens, windowSize ->
-                binder.notifyChatStats(chatId, inputTokens, outputTokens, windowSize)
-                AppLogger.d(TAG, "流完成，通知主界面重新加载消息. chatId=$chatId")
-                if (!binder.notifyChatSync(chatId, emptyList())) {
-                    AppLogger.d(TAG, "主界面未注册同步回调，回退为重新加载请求")
-                    binder.notifyReload()
-                }
-            }
-            
+
             // 订阅聊天历史更新
             serviceScope.launch {
                 chatCore.chatHistory.collect { messages ->
@@ -492,19 +450,6 @@ class FloatingChatService : Service(), FloatingWindowCallback {
                 scheduleAutoExit(null)
             }
 
-            if (intent?.hasExtra("CHAT_MESSAGES") == true) {
-                @Suppress("DEPRECATION")
-                val messagesArray = if (Build.VERSION.SDK_INT >= 33) { // Build.VERSION_CODES.TIRAMISU
-                    intent.getParcelableArrayExtra("CHAT_MESSAGES", ChatMessage::class.java)
-                } else {
-                    intent.getParcelableArrayExtra("CHAT_MESSAGES")
-                }
-                if (messagesArray != null) {
-                    val messages = mutableListOf<ChatMessage>()
-                    messagesArray.forEach { if (it is ChatMessage) messages.add(it) }
-                    updateChatMessages(messages)
-                }
-            }
             val hasColorSchemeExtra = intent?.hasExtra("COLOR_SCHEME") == true
             if (hasColorSchemeExtra) {
                 val serializableColorScheme =
@@ -618,37 +563,6 @@ class FloatingChatService : Service(), FloatingWindowCallback {
         chatCore.removeAttachment(filePath)
     }
 
-    fun updateChatMessages(messages: List<ChatMessage>) {
-        serviceScope.launch {
-            AppLogger.d(
-                    TAG,
-                    "服务收到消息更新: ${messages.size} 条. 最后一条消息的 stream is null: ${messages.lastOrNull()?.contentStream == null}"
-            )
-            
-            // 智能合并：通过 timestamp 匹配已存在的消息，保持原实例不变
-            val currentMessages = chatMessages.value
-            val currentMessageMap = currentMessages.associateBy { it.timestamp }
-            
-            val mergedMessages = messages.map { newMsg ->
-                val existingMsg = currentMessageMap[newMsg.timestamp]
-                if (existingMsg != null) {
-                    // 消息已存在，保持原实例，但更新内容（如果内容有变化）
-                    if (existingMsg.content != newMsg.content || existingMsg.roleName != newMsg.roleName) {
-                        existingMsg.copy(content = newMsg.content, roleName = newMsg.roleName)
-                    } else {
-                        existingMsg
-                    }
-                } else {
-                    // 新消息，直接添加
-                    newMsg
-                }
-            }
-            
-            chatMessages.value = mergedMessages
-            AppLogger.d(TAG, "智能合并完成: 当前 ${currentMessages.size} 条 -> 合并后 ${mergedMessages.size} 条")
-        }
-    }
-
     override fun onDestroy() {
         try {
             AIForegroundService.setWakeListeningSuspendedForFloatingFullscreen(
@@ -660,6 +574,11 @@ class FloatingChatService : Service(), FloatingWindowCallback {
 
             try {
                 binder.clearCallbacks()
+            } catch (_: Exception) {
+            }
+
+            try {
+                chatCore.setUiBridge(EmptyChatServiceUiBridge)
             } catch (_: Exception) {
             }
 
@@ -880,23 +799,4 @@ class FloatingChatService : Service(), FloatingWindowCallback {
      */
     fun getChatCore(): ChatServiceCore = chatCore
 
-    /**
-     * 重新加载聊天消息（从数据库加载并智能合并）
-     * 用于在流完成时同步消息，保持已存在消息的实例不变
-     */
-    fun reloadChatMessages() {
-        serviceScope.launch {
-            try {
-                val chatId = chatCore.currentChatId.value
-                if (chatId != null) {
-                    AppLogger.d(TAG, "重新加载聊天消息，chatId: $chatId")
-                    chatCore.reloadChatMessagesSmart(chatId)
-                } else {
-                    AppLogger.w(TAG, "当前没有活跃对话，无法重新加载消息")
-                }
-            } catch (e: Exception) {
-                AppLogger.e(TAG, "重新加载聊天消息失败", e)
-            }
-        }
-    }
 }

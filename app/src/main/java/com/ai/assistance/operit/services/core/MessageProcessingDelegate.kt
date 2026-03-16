@@ -57,16 +57,11 @@ class MessageProcessingDelegate(
         private val onTokenLimitExceeded: suspend (chatId: String?) -> Unit, // 新增：Token超限回调
         // 添加自动朗读相关的回调
         private val getIsAutoReadEnabled: () -> Boolean,
-        private val speakMessage: (String, Boolean) -> Unit
+        private var speakMessageHandler: (String, Boolean) -> Unit
 ) {
     companion object {
         private const val TAG = "MessageProcessingDelegate"
         private const val STREAM_SCROLL_THROTTLE_MS = 200L
-
-        private val sharedIsLoading = MutableStateFlow(false)
-        private val sharedActiveStreamingChatIds = MutableStateFlow<Set<String>>(emptySet())
-        private val loadingByInstance = ConcurrentHashMap<String, Boolean>()
-        private val activeChatIdsByInstance = ConcurrentHashMap<String, Set<String>>()
     }
 
     // 角色卡管理器
@@ -81,9 +76,11 @@ class MessageProcessingDelegate(
     private val _userMessage = MutableStateFlow(TextFieldValue(""))
     val userMessage: StateFlow<TextFieldValue> = _userMessage.asStateFlow()
 
-    val isLoading: StateFlow<Boolean> = sharedIsLoading.asStateFlow()
+    private val _isLoading = MutableStateFlow(false)
+    val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
 
-    val activeStreamingChatIds: StateFlow<Set<String>> = sharedActiveStreamingChatIds.asStateFlow()
+    private val _activeStreamingChatIds = MutableStateFlow<Set<String>>(emptySet())
+    val activeStreamingChatIds: StateFlow<Set<String>> = _activeStreamingChatIds.asStateFlow()
 
     private val _inputProcessingStateByChatId =
         MutableStateFlow<Map<String, EnhancedInputProcessingState>>(emptyMap())
@@ -99,6 +96,10 @@ class MessageProcessingDelegate(
     private val _turnCompleteCounterByChatId = MutableStateFlow<Map<String, Long>>(emptyMap())
     val turnCompleteCounterByChatId: StateFlow<Map<String, Long>> =
         _turnCompleteCounterByChatId.asStateFlow()
+    private val _currentTurnToolInvocationCountByChatId =
+        MutableStateFlow<Map<String, Int>>(emptyMap())
+    val currentTurnToolInvocationCountByChatId: StateFlow<Map<String, Int>> =
+        _currentTurnToolInvocationCountByChatId.asStateFlow()
 
     // 当前活跃的AI响应流
     private data class ChatRuntime(
@@ -112,8 +113,6 @@ class MessageProcessingDelegate(
     private val lastScrollEmitMsByChatKey = ConcurrentHashMap<String, AtomicLong>()
     private val suppressIdleCompletedStateByChatId = ConcurrentHashMap<String, Boolean>()
     private val pendingAsyncSummaryUiByChatId = ConcurrentHashMap<String, Boolean>()
-
-    private val instanceKey = "MPD-${System.identityHashCode(this)}"
 
     private fun chatKey(chatId: String?): String = chatId ?: "__DEFAULT_CHAT__"
 
@@ -146,13 +145,8 @@ class MessageProcessingDelegate(
             .filter { it != "__DEFAULT_CHAT__" }
             .toSet()
 
-        loadingByInstance[instanceKey] = anyLoading
-        activeChatIdsByInstance[instanceKey] = activeChatIds
-
-        sharedActiveStreamingChatIds.value = activeChatIdsByInstance.values
-            .flatten()
-            .toSet()
-        sharedIsLoading.value = loadingByInstance.values.any { it }
+        _activeStreamingChatIds.value = activeChatIds
+        _isLoading.value = anyLoading
     }
 
     private fun setChatInputProcessingState(chatId: String?, state: EnhancedInputProcessingState) {
@@ -244,6 +238,7 @@ class MessageProcessingDelegate(
             chatRuntime.isLoading.value = false
             chatRuntime.responseStream = null
             updateGlobalLoadingState()
+            clearCurrentTurnToolInvocationCount(chatId)
 
             withContext(Dispatchers.IO) {
                 AIMessageManager.cancelOperation(chatId)
@@ -270,6 +265,28 @@ class MessageProcessingDelegate(
 
     fun getTurnCompleteCounter(chatId: String): Long {
         return _turnCompleteCounterByChatId.value[chatId] ?: 0L
+    }
+
+    fun setSpeakMessageHandler(handler: (String, Boolean) -> Unit) {
+        speakMessageHandler = handler
+    }
+
+    private fun resetCurrentTurnToolInvocationCount(chatId: String) {
+        val updated = _currentTurnToolInvocationCountByChatId.value.toMutableMap()
+        updated[chatId] = 0
+        _currentTurnToolInvocationCountByChatId.value = updated
+    }
+
+    private fun incrementCurrentTurnToolInvocationCount(chatId: String) {
+        val updated = _currentTurnToolInvocationCountByChatId.value.toMutableMap()
+        updated[chatId] = (updated[chatId] ?: 0) + 1
+        _currentTurnToolInvocationCountByChatId.value = updated
+    }
+
+    private fun clearCurrentTurnToolInvocationCount(chatId: String) {
+        val updated = _currentTurnToolInvocationCountByChatId.value.toMutableMap()
+        updated.remove(chatId)
+        _currentTurnToolInvocationCountByChatId.value = updated
     }
 
     fun sendUserMessage(
@@ -320,6 +337,7 @@ class MessageProcessingDelegate(
         if (messageTextOverride == null) {
             _userMessage.value = TextFieldValue("")
         }
+        resetCurrentTurnToolInvocationCount(chatId)
         chatRuntime.isLoading.value = true
         updateGlobalLoadingState()
         setChatInputProcessingState(chatId, EnhancedInputProcessingState.Processing(context.getString(R.string.message_processing)))
@@ -578,6 +596,9 @@ class MessageProcessingDelegate(
                     groupOrchestrationMode = isGroupOrchestrationTurn,
                     groupParticipantNamesText = groupParticipantNamesText,
                     proxySenderName = proxySenderNameOverride,
+                    onToolInvocation = {
+                        incrementCurrentTurnToolInvocationCount(chatId)
+                    },
                     chatModelConfigIdOverride = chatModelConfigIdOverride,
                     chatModelIndexOverride = chatModelIndexOverride
                 )
@@ -674,7 +695,7 @@ class MessageProcessingDelegate(
                                 val trimmed = segment.trim()
                                 if (trimmed.isNotEmpty()) {
                                     didStreamAutoRead = true
-                                    speakMessage(trimmed, interrupt)
+                                    speakMessageHandler(trimmed, interrupt)
                                 }
                             }
 
@@ -826,7 +847,7 @@ class MessageProcessingDelegate(
                 }
 
                 val cleanupRuntimeStartTime = messageTimingNow()
-                cleanupRuntimeAfterSend(chatRuntime)
+                cleanupRuntimeAfterSend(chatId, chatRuntime)
                 logMessageTiming(
                     stage = "delegate.cleanupRuntime",
                     startTimeMs = cleanupRuntimeStartTime,
@@ -959,7 +980,7 @@ class MessageProcessingDelegate(
                                 }
                                 // 如果启用了自动朗读，则朗读当前句子
                                 if (getIsAutoReadEnabled()) {
-                                    speakMessage(sentence, true)
+                                    speakMessageHandler(sentence, true)
                                 }
                                 if (index == sentences.lastIndex) {
                                     forceEmitScrollToBottom(chatId)
@@ -987,7 +1008,7 @@ class MessageProcessingDelegate(
                         }
                         // 如果启用了自动朗读，则朗读完整消息
                         if (getIsAutoReadEnabled() && !skipFinalAutoRead) {
-                            speakMessage(finalContent, true)
+                            speakMessageHandler(finalContent, true)
                         }
                         forceEmitScrollToBottom(chatId)
                     }
@@ -1029,13 +1050,14 @@ class MessageProcessingDelegate(
         }
     }
 
-    private fun cleanupRuntimeAfterSend(chatRuntime: ChatRuntime) {
+    private fun cleanupRuntimeAfterSend(chatId: String, chatRuntime: ChatRuntime) {
         chatRuntime.streamCollectionJob = null
         chatRuntime.stateCollectionJob?.cancel()
         chatRuntime.stateCollectionJob = null
         chatRuntime.isLoading.value = false
 
         updateGlobalLoadingState()
+        clearCurrentTurnToolInvocationCount(chatId)
     }
 
     /**

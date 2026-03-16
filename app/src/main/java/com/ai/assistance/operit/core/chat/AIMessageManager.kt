@@ -305,6 +305,7 @@ object AIMessageManager {
         groupOrchestrationMode: Boolean = false,
         groupParticipantNamesText: String? = null,
         proxySenderName: String? = null,
+        onToolInvocation: (suspend (String) -> Unit)? = null,
         chatModelConfigIdOverride: String? = null,
         chatModelIndexOverride: Int? = null
     ): SharedStream<String> {
@@ -434,6 +435,7 @@ object AIMessageManager {
                 enableGroupOrchestrationHint = groupOrchestrationMode,
                 groupParticipantNamesText = groupParticipantNamesText,
                 proxySenderName = proxySenderName,
+                onToolInvocation = onToolInvocation,
                 chatModelConfigIdOverride = chatModelConfigIdOverride,
                 chatModelIndexOverride = chatModelIndexOverride,
                 stream = enableStream

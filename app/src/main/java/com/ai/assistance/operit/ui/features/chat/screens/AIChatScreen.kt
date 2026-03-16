@@ -1224,7 +1224,7 @@ val actualViewModel: ChatViewModel = viewModel ?: viewModel { ChatViewModel(cont
                 .align(Alignment.TopCenter)
                 .padding(
                     start = 16.dp,
-                    top = padding.calculateTopPadding() + 12.dp,
+                    top = padding.calculateTopPadding() + 50.dp,
                     end = 16.dp
                 ),
             maxHeight = 280.dp

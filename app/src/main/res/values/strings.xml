@@ -1403,7 +1403,7 @@
     <string name="settings_prompt_desc">自定义AI助手的行为和性格的提示词</string>
     <string name="settings_configure_prompt">配置提示词</string>
     <string name="settings_functional_prompt_title">功能提示词配置</string>
-    <string name="settings_functional_prompt_desc">为不同功能（对话、语音、桌宠）设置专用的提示词</string>
+    <string name="settings_functional_prompt_desc">为不同功能（对话、语音）设置专用的提示词</string>
     <string name="settings_configure_functional_prompt">配置功能提示词</string>
     <string name="settings_appearance_section">外观设置</string>
     
@@ -6462,6 +6462,7 @@
     <string name="service_notify_when_complete">对话完成后提醒你。</string>
     <string name="service_running_wake_pause">Operit 正在运行（唤醒暂停）</string>
     <string name="service_running_wake_listening">Operit 正在运行（唤醒监听中）</string>
+    <string name="service_running_stats">运行对话 %1$d · 调用工具 %2$d</string>
     <string name="service_voice_floating_window">语音悬浮窗</string>
     <string name="service_turn_off_wake">关闭唤醒</string>
     <string name="service_turn_on_wake">开启唤醒</string>

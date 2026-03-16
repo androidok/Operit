@@ -11,8 +11,11 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -32,8 +35,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.res.stringResource
@@ -52,6 +57,11 @@ fun EditPanel(
     onSend: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val density = LocalDensity.current
+    val imeBottomPx = WindowInsets.ime.getBottom(density)
+    val navigationBarBottomPx = WindowInsets.navigationBars.getBottom(density)
+    val imeOffsetPx = (imeBottomPx - navigationBarBottomPx).coerceAtLeast(0)
+
     AnimatedVisibility(
         visible = visible,
         enter = slideInVertically(
@@ -62,7 +72,7 @@ fun EditPanel(
             targetOffsetY = { it },
             animationSpec = tween(300)
         ) + fadeOut(tween(300)),
-        modifier = modifier
+        modifier = modifier.graphicsLayer { translationY = -imeOffsetPx.toFloat() }
     ) {
         Column(
             modifier = Modifier

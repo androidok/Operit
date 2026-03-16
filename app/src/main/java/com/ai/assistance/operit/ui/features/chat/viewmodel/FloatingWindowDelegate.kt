@@ -8,14 +8,12 @@ import android.content.IntentFilter
 import android.content.ServiceConnection
 import android.os.Build
 import android.os.IBinder
-import com.ai.assistance.operit.util.AppLogger
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.Typography
-import com.ai.assistance.operit.data.model.ChatMessage
 import com.ai.assistance.operit.data.model.InputProcessingState
 import com.ai.assistance.operit.data.model.toSerializable
 import com.ai.assistance.operit.services.FloatingChatService
-import com.ai.assistance.operit.services.core.ChatHistoryDelegate
+import com.ai.assistance.operit.util.AppLogger
 import com.ai.assistance.operit.ui.floating.FloatingMode
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -27,10 +25,7 @@ import kotlinx.coroutines.launch
 class FloatingWindowDelegate(
     private val context: Context,
     private val coroutineScope: CoroutineScope,
-    private val inputProcessingState: StateFlow<InputProcessingState>,
-    private val chatHistoryFlow: StateFlow<List<ChatMessage>>? = null,
-    private val chatHistoryDelegate: ChatHistoryDelegate? = null,
-    private val onChatStatsUpdate: ((chatId: String?, inputTokens: Int, outputTokens: Int, windowSize: Int) -> Unit)? = null
+    private val inputProcessingState: StateFlow<InputProcessingState>
 ) {
     companion object {
         private const val TAG = "FloatingWindowDelegate"
@@ -72,46 +67,6 @@ class FloatingWindowDelegate(
                 binder.setCloseCallback {
                     closeFloatingWindow()
                 }
-                // 设置反向通信回调，允许悬浮窗通知应用重新加载消息
-                binder.setReloadCallback {
-                    coroutineScope.launch {
-                        try {
-                            val chatId = chatHistoryDelegate?.currentChatId?.value
-                            if (chatId != null) {
-                                AppLogger.d(TAG, "收到悬浮窗重新加载请求，chatId: $chatId")
-                                chatHistoryDelegate?.reloadChatMessagesSmart(chatId)
-                            } else {
-                                AppLogger.w(TAG, "当前没有活跃对话，无法重新加载消息")
-                            }
-                        } catch (e: Exception) {
-                            AppLogger.e(TAG, "重新加载消息失败", e)
-                        }
-                    }
-                }
-
-                binder.setChatSyncCallback { chatId, messages ->
-                    coroutineScope.launch {
-                        try {
-                            if (chatId == null) {
-                                return@launch
-                            }
-
-                            val currentId = chatHistoryDelegate?.currentChatId?.value
-                            if (currentId == chatId) {
-                                AppLogger.d(TAG, "收到悬浮窗消息同步(改为DB重新加载): chatId=$chatId, messages=${messages.size}")
-                                chatHistoryDelegate?.reloadChatMessagesSmart(chatId)
-                            }
-                        } catch (e: Exception) {
-                            AppLogger.e(TAG, "处理悬浮窗消息同步失败", e)
-                        }
-                    }
-                }
-
-                binder.setChatStatsCallback { chatId, inputTokens, outputTokens, windowSize ->
-                    onChatStatsUpdate?.invoke(chatId, inputTokens, outputTokens, windowSize)
-                }
-                // 订阅聊天历史更新
-                setupChatHistoryCollection()
             }
 
             override fun onServiceDisconnected(name: ComponentName?) {
@@ -258,41 +213,6 @@ class FloatingWindowDelegate(
                 // Update UI busy state directly on the window state
                 // floatingService?.windowState?.isUiBusy?.value = isUiToolExecuting
             }
-        }
-    }
-
-    /** 设置聊天历史收集 - 订阅ChatHistoryDelegate的chatHistory流 */
-    private fun setupChatHistoryCollection() {
-        chatHistoryFlow?.let { flow ->
-            coroutineScope.launch {
-                try {
-                    // 先立即同步当前的消息历史（服务刚连接时）
-                    val currentMessages = flow.value
-                    if (currentMessages.isNotEmpty()) {
-                        AppLogger.d(TAG, "悬浮窗服务连接，立即同步当前消息: ${currentMessages.size} 条")
-                        floatingService?.updateChatMessages(currentMessages)
-                    }
-
-                    // 然后订阅后续的更新
-                    flow.collect { messages ->
-                        // 只在悬浮窗模式激活时同步消息
-                        if (_isFloatingMode.value) {
-                            AppLogger.d(TAG, "从ChatHistoryDelegate收到消息更新: ${messages.size} 条")
-                            floatingService?.updateChatMessages(messages)
-                        }
-                    }
-                } catch (e: Exception) {
-                    AppLogger.e(TAG, "收集聊天历史时出错", e)
-                }
-            }
-        } ?: AppLogger.w(TAG, "chatHistoryFlow为空，无法订阅聊天历史更新")
-    }
-
-    /** 通知悬浮窗服务重新加载消息 */
-    fun notifyFloatingServiceReload() {
-        if (_isFloatingMode.value && floatingService != null) {
-            AppLogger.d(TAG, "通知悬浮窗服务重新加载消息")
-            floatingService?.reloadChatMessages()
         }
     }
 

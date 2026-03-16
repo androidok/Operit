@@ -21,6 +21,7 @@ import com.ai.assistance.operit.data.preferences.CharacterCardManager
 import com.ai.assistance.operit.data.preferences.CharacterGroupCardManager
 import com.ai.assistance.operit.data.preferences.ActivePromptManager
 import com.ai.assistance.operit.data.preferences.DisplayPreferencesManager
+import com.ai.assistance.operit.services.ChatServiceUiBridge
 import com.ai.assistance.operit.util.ChatMarkupRegex
 import com.ai.assistance.operit.util.ChatUtils
 import com.ai.assistance.operit.util.LocaleUtils
@@ -54,10 +55,7 @@ class MessageCoordinationDelegate(
     private val attachmentDelegate: AttachmentDelegate,
     private val uiStateDelegate: UiStateDelegate,
     private val getEnhancedAiService: () -> EnhancedAIService?,
-    private val updateWebServerForCurrentChat: (String) -> Unit,
-    private val resetAttachmentPanelState: () -> Unit,
-    private val clearReplyToMessage: () -> Unit,
-    private val getReplyToMessage: () -> ChatMessage?
+    private var uiBridge: ChatServiceUiBridge
 ) {
     companion object {
         private const val TAG = "MessageCoordinationDelegate"
@@ -247,7 +245,7 @@ class MessageCoordinationDelegate(
 
         if (!isBackgroundSend) {
             // 更新本地Web服务器的聊天ID
-            updateWebServerForCurrentChat(chatId)
+            uiBridge.updateWebServerForCurrentChat(chatId)
         }
 
         // 获取当前附件列表
@@ -353,7 +351,7 @@ class MessageCoordinationDelegate(
             enableWorkspaceAttachment = !workspacePath.isNullOrBlank(),
             maxTokens = (apiConfigDelegate.contextLength.value * 1024).toInt(),
             tokenUsageThreshold = tokenUsageThresholdForSend,
-            replyToMessage = if (isBackgroundSend) null else getReplyToMessage(),
+            replyToMessage = if (isBackgroundSend) null else uiBridge.getReplyToMessage(),
             isAutoContinuation = isAutoContinuation,
             enableSummary = !forceDisableSummary && !isBackgroundSend && apiConfigDelegate.enableSummary.value,
             chatModelConfigIdOverride = resolvedChatModelConfigIdOverride,
@@ -368,8 +366,8 @@ class MessageCoordinationDelegate(
             if (currentAttachments.isNotEmpty()) {
                 attachmentDelegate.clearAttachments()
             }
-            resetAttachmentPanelState()
-            clearReplyToMessage()
+            uiBridge.resetAttachmentPanelState()
+            uiBridge.clearReplyToMessage()
         }
     }
 
@@ -450,7 +448,7 @@ class MessageCoordinationDelegate(
             it.fileName == "memory_context.xml" && it.mimeType == "application/xml"
         }
         val shouldEnableMemoryQuery = apiConfigDelegate.enableMemoryQuery.value || hasMemoryFolder
-        val replyToMessage = getReplyToMessage()
+        val replyToMessage = uiBridge.getReplyToMessage()
 
         val isFirstMessage = chatHistoryDelegate.chatHistory.value.none { it.sender == "user" }
         if (isFirstMessage) {
@@ -505,16 +503,16 @@ class MessageCoordinationDelegate(
                 InputProcessingState.Error(message)
             )
             attachmentDelegate.clearAttachments()
-            resetAttachmentPanelState()
-            clearReplyToMessage()
+            uiBridge.resetAttachmentPanelState()
+            uiBridge.clearReplyToMessage()
             return true
         }
 
         if (plannedRounds.rounds.isEmpty() || plannedRounds.rounds.all { round -> round.all { !it.speak } }) {
             AppLogger.d(TAG, "回答规划本轮全部跳过发言")
             attachmentDelegate.clearAttachments()
-            resetAttachmentPanelState()
-            clearReplyToMessage()
+            uiBridge.resetAttachmentPanelState()
+            uiBridge.clearReplyToMessage()
             messageProcessingDelegate.setInputProcessingStateForChat(
                 chatId,
                 InputProcessingState.Completed
@@ -1222,5 +1220,9 @@ class MessageCoordinationDelegate(
             }
         }
         return summarySuccess
+    }
+
+    fun setUiBridge(uiBridge: ChatServiceUiBridge) {
+        this.uiBridge = uiBridge
     }
 }

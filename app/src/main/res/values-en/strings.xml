@@ -1446,7 +1446,7 @@
     <string name="settings_prompt_desc">Customize AI assistant behavior and personality prompts</string>
     <string name="settings_configure_prompt">Configure Prompts</string>
     <string name="settings_functional_prompt_title">Functional Prompt Configuration</string>
-    <string name="settings_functional_prompt_desc">Set dedicated prompts for different functions (chat, voice, desktop pet)</string>
+    <string name="settings_functional_prompt_desc">Set dedicated prompts for different functions (chat, voice)</string>
     <string name="settings_configure_functional_prompt">Configure Functional Prompts</string>
     <string name="settings_appearance_section">Appearance</string>
 
@@ -6445,6 +6445,7 @@
     <string name="service_notify_when_complete">Notify you when the conversation is complete.</string>
     <string name="service_running_wake_pause">Operit is running (wake paused)</string>
     <string name="service_running_wake_listening">Operit is running (wake listening)</string>
+    <string name="service_running_stats">Conversations %1$d · Tools %2$d</string>
     <string name="service_voice_floating_window">Voice floating window</string>
     <string name="service_turn_off_wake">Turn off wake</string>
     <string name="service_turn_on_wake">Turn on wake</string>

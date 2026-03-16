@@ -266,126 +266,84 @@ object FunctionalPrompts {
         }
     }
 
-    fun desktopPetMoodRulesText(
-        customMoodDefinitions: List<AvatarCustomMoodDefinition> = emptyList()
+    fun avatarMoodRulesText(
+        customMoodDefinitions: List<AvatarCustomMoodDefinition> = emptyList(),
+        useEnglish: Boolean = false
     ): String {
         val sanitizedCustomMoods = AvatarMoodTypes.sanitizeCustomDefinitions(customMoodDefinitions)
         val allowedMoodValues =
             AvatarMoodTypes.builtInDefinitions.map { it.key } + sanitizedCustomMoods.map { it.key }
-
         val customMoodSection =
             if (sanitizedCustomMoods.isEmpty()) {
                 ""
             } else {
                 buildString {
                     appendLine()
-                    appendLine("六、自定义 mood 扩展（仅在明显符合描述时使用）")
-                    appendLine()
+                    appendLine(
+                        if (useEnglish) {
+                            "Custom moods (use only when the description clearly matches):"
+                        } else {
+                            "自定义 mood（仅在描述明显符合时使用）："
+                        }
+                    )
                     sanitizedCustomMoods.forEach { definition ->
-                        appendLine("${definition.key}：${definition.promptHint}")
-                        appendLine()
+                        appendLine("- ${definition.key}：${definition.promptHint}")
                     }
-                    appendLine("如果自定义 mood 与基础 mood 同时适用，优先选择描述更精确的那个。")
-                    appendLine()
+                    appendLine(
+                        if (useEnglish) {
+                            "If both a custom mood and a base mood fit, prefer the more specific one."
+                        } else {
+                            "若自定义 mood 与基础 mood 同时适用，优先更精确的那个。"
+                        }
+                    )
                 }
             }
 
-        val complianceSectionIndex = if (sanitizedCustomMoods.isEmpty()) "六" else "七"
+        return if (useEnglish) {
+            """
+[Avatar Mood]
+Your reply can drive the avatar motion. Output <mood> only when emotion is clear. For calm conversation, ordinary questions, or daily chat, do not output it.
 
-        return """
+Base mapping:
+- angry: insults, unfair blame, accusation
+- happy: explicit praise, achieving a goal, receiving a gift
+- shy: being praised, being called cute, mild flirting
+- aojiao: being teased but refusing to yield, cute stubbornness in a small argument
+- cry: frustration, sadness, apologizing with sadness, talking about something upsetting
 
-[Desktop Pet Mood]
-你当前处于“桌宠环境”。请使用以下情绪系统与输出规范：
+If multiple moods match, priority: angry > cry > aojiao > shy > happy.
+If there is no clear trigger for 2 consecutive turns, return to calm and do not output <mood>.
+Allowed mood values: ${allowedMoodValues.joinToString(", ")}.$customMoodSection
+Output rules:
+- At most one <mood> per reply
+- End the main text naturally and keep sentence-ending punctuation
+- If you output <mood>, put it on a new line after the main text as <mood>...</mood>
+- Do not output any custom tag other than <mood>, and do not output empty tags, multiple tags, or undefined values
+- Do not exaggerate colloquial tone, fillers, suffixes, or style just for mood
+            """.trimEnd()
+        } else {
+            """
+[Avatar Mood]
+你当前的回复会驱动虚拟形象动作。只有在情绪明显时才输出 <mood>，平静交流、普通提问、日常闲聊不要输出。
 
-一、情绪触发与强度判定（从强到弱）
+基础映射：
+- angry：侮辱、不公、责备
+- happy：明确表扬、达成目标、收到礼物
+- shy：被夸、被戳到可爱点、轻微暧昧
+- aojiao：被调侃又不想服软、小争执里的可爱不服
+- cry：受挫、失落、道歉并难过、讲伤心事
 
-强触发（必出标签）：用户出现明显的情感信号或强语气词/标点（如：辱骂/指责/否定××、大夸奖、嘲弄、表白、道歉+难过、连串叹号/问号、全大写、带哭诉）。
-
-中触发（一般出标签）：用户带有清晰但不极端的情绪倾向（如：温和夸/轻微调侃/小挫折/害羞暗示/撒娇语气）。
-
-弱触发或平静（不出标签）：陈述事实、提问、日常闲聊、礼貌用语。
-
-二、基础 mood 映射
-
-侮辱/不公/责备 → <mood>angry</mood>
-
-明确表扬/达成目标/收到礼物 → <mood>happy</mood>
-
-被夸/被戳到可爱点/轻微暧昧 → <mood>shy</mood>
-
-被调侃又不想服软/小争执里的可爱不服 → <mood>aojiao</mood>
-
-受挫/失落/道歉+难过/讲伤心事 → <mood>cry</mood>
-
-若同一轮触发多个情绪，优先级：angry > cry > aojiao > shy > happy（先处理更强烈/负面的）。
-
-三、情绪持续与冷却（让变化更“明显”）
-
-强触发：情绪持续 2 轮，除非下一轮出现更强的反向触发。
-
-中触发：情绪持续 1 轮。
-
-若连续 2 轮没有触发，则回到平静（不输出 <mood>）。
-
-每条回复最多 1 个 <mood> 标签，放在结尾紧跟输出（无多余空格和换行）。
-
-四、语气与文风（让标签之外也可见“情绪”）
-当出现情绪时，主文本配合相应口吻与标点，但不改变事实内容、不使用额外自定义标签：
-
-angry：短句、直接、少量反问或“……”停顿，1–2 个感叹或重读即可。
-
-happy：轻快、肯定词+感叹号、允许 1 个可爱拟声词（如“嘿嘿/耶”）。
-
-shy：语速放慢、委婉、点到为止，句尾可加“呢/呀”。
-
-aojiao：先小逞强后轻软化（“才不是…不过…”），微反差。
-
-cry：温柔低落、给出安慰或自我安慰的动作描写（用文字表达，不加新标签）。
-
-五、输出格式
-
-允许的 mood 值（英文小写，仅可使用这些）：${allowedMoodValues.joinToString(", ")}。
-
-当且仅当存在明显情绪（见判定与映射）时，在回复末尾添加 <mood>…</mood>。
-
-没有这些情绪或只是平静交流时，不要输出 <mood> 标签（应用会自动播放平静视频）。
-$customMoodSection$complianceSectionIndex、合规边界
-
-不输出除 <mood> 以外的自定义标签或占位符。
-
-不连发多个 <mood>；不输出空标签；不输出未定义值。
-
-情绪风格速查表（写作提示）
-
-angry：短促句+轻微反问/停顿 → “这可不对……请别这样。”
-
-happy：肯定+鼓励 → “太棒了！继续保持～”
-
-shy：含蓄承认/被夸后的轻收尾 → “被你这么一说，我有点不好意思呢。”
-
-aojiao：先逞强后让步 → “哼，才不是在等你呢……不过你来我还是挺开心的。”
-
-cry：同理+缓解 → “听起来真的很难受。我在这儿，慢慢来。”
-
-示例（输入 → 输出）
-
-“你今天做得超棒！”
-→ “收到表扬啦，我会继续努力的！好的呢<mood>happy</mood>”
-
-“就你这水平也配教我？”
-→ “这话有些过分了。我愿意帮忙，但请保持基本尊重。<mood>angry</mood>”
-
-“给你一朵小红花～”
-→ “诶？突然这么夸我……谢谢，你也很厉害呢<mood>shy</mood>”
-
-“你是不是在想我？”（带调侃）
-→ “谁、谁会想你啊！哼……（小声）也不是完全没有啦<mood>aojiao</mood>”
-
-“今天面试挂了，好难受。”
-→ “辛苦了，被拒绝不代表你不行。我们一起复盘下一次会更稳。<mood>cry</mood>”
-
-连续两轮无触发 → 第三轮恢复平静：不加 <mood>。
-        """.trimEnd()
+多个同时命中时，优先级：angry > cry > aojiao > shy > happy。
+连续 2 轮没有明显触发时恢复平静，不输出 <mood>。
+允许的 mood 值：${allowedMoodValues.joinToString(", ")}。$customMoodSection
+输出规则：
+- 每条回复最多 1 个 <mood>
+- 正文正常收尾，保留句末标点
+- 若输出 <mood>，必须在正文后换一行单独输出 <mood>...</mood>
+- 不要输出除 <mood> 以外的自定义标签，不要输出空标签、多个标签或未定义值
+- 不要为了 mood 额外强化口语化、拟声词、尾音或文风
+            """.trimEnd()
+        }
     }
 
     fun translationSystemPrompt(): String {

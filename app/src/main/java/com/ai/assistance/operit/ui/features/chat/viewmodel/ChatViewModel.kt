@@ -16,6 +16,8 @@ import androidx.core.content.FileProvider
 import com.ai.assistance.operit.ui.features.chat.components.ChatStyle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.ai.assistance.operit.api.chat.ChatRuntimeHolder
+import com.ai.assistance.operit.api.chat.ChatRuntimeSlot
 import com.ai.assistance.operit.api.chat.EnhancedAIService
 import com.ai.assistance.operit.core.chat.AIMessageManager
 import com.ai.assistance.operit.core.tools.AIToolHandler
@@ -74,6 +76,9 @@ import com.ai.assistance.operit.services.core.TokenStatisticsDelegate
 import com.ai.assistance.operit.services.core.AttachmentDelegate
 import com.ai.assistance.operit.services.core.MessageCoordinationDelegate
 import com.ai.assistance.operit.data.model.InputProcessingState
+import com.ai.assistance.operit.services.ChatServiceCore
+import com.ai.assistance.operit.services.ChatServiceUiBridge
+import com.ai.assistance.operit.services.EmptyChatServiceUiBridge
 import com.ai.assistance.operit.ui.features.chat.util.MessageImageGenerator
 import com.ai.assistance.operit.ui.features.chat.components.CharacterSelectorTarget
 
@@ -110,6 +115,7 @@ class ChatViewModel(private val context: Context) : ViewModel() {
 
     // 工具处理器
     private val toolHandler = AIToolHandler.getInstance(context)
+    private val chatRuntimeHolder = ChatRuntimeHolder.getInstance(context)
 
     // 工具权限系统
     private val toolPermissionSystem = ToolPermissionSystem.getInstance(context)
@@ -127,34 +133,12 @@ class ChatViewModel(private val context: Context) : ViewModel() {
     private var workspaceCommandExecutionJob: Job? = null
     private var workspaceOpenJob: Job? = null
 
-    // 附件管理器 - 使用 services/core 版本
-    private val attachmentDelegate = AttachmentDelegate(context, toolHandler)
-
-    // 委托类 - 使用 services/core 版本
-    val uiStateDelegate = UiStateDelegate()
-    private val tokenStatsDelegate =
-            TokenStatisticsDelegate(
-                    coroutineScope = viewModelScope,  // 改用 coroutineScope 参数
-                    getEnhancedAiService = { enhancedAiService }
-            )
-    private val apiConfigDelegate =
-            ApiConfigDelegate(
-                    context = context,
-                    coroutineScope = viewModelScope,  // 改用 coroutineScope 参数
-                    onConfigChanged = { service ->
-                        enhancedAiService = service
-                        // API配置变更后，异步设置服务收集器
-                        viewModelScope.launch {
-                            AppLogger.d(TAG, "API配置变更，设置 token 统计收集器")
-                            tokenStatsDelegate.setupCollectors()
-                        }
-                        // 设置输入处理状态监听
-                        setupInputProcessingStateListener(service)
-                    }
-            )
-
-
-    // Break circular dependency with lateinit
+    private lateinit var mainChatCore: ChatServiceCore
+    private lateinit var attachmentDelegate: AttachmentDelegate
+    lateinit var uiStateDelegate: UiStateDelegate
+        private set
+    private lateinit var tokenStatsDelegate: TokenStatisticsDelegate
+    private lateinit var apiConfigDelegate: ApiConfigDelegate
     private lateinit var chatHistoryDelegate: ChatHistoryDelegate
     private lateinit var messageProcessingDelegate: MessageProcessingDelegate
     private lateinit var floatingWindowDelegate: FloatingWindowDelegate
@@ -460,121 +444,45 @@ class ChatViewModel(private val context: Context) : ViewModel() {
     }
 
     private fun initializeDelegates() {
-        // First initialize chat history delegate
-        chatHistoryDelegate =
-                ChatHistoryDelegate(
-                        context = context,
-                        coroutineScope = viewModelScope,
-                        onTokenStatisticsLoaded = { chatId, inputTokens, outputTokens, windowSize ->
-                            tokenStatsDelegate.setActiveChatId(chatId)
-                            tokenStatsDelegate.setTokenCounts(chatId, inputTokens, outputTokens, windowSize)
-                        },
-                        getEnhancedAiService = { enhancedAiService },
-                        ensureAiServiceAvailable = { ensureAiServiceAvailable() },
-                        getChatStatistics = {
-                            val (inputTokens, outputTokens) = tokenStatsDelegate.getCumulativeTokenCounts()
-                            val windowSize = tokenStatsDelegate.getLastCurrentWindowSize()
-                            Triple(inputTokens, outputTokens, windowSize)
-                        },
-                        onScrollToBottom = { messageProcessingDelegate.scrollToBottom() }
-                )
+        mainChatCore = chatRuntimeHolder.getCore(ChatRuntimeSlot.MAIN)
+        uiStateDelegate = mainChatCore.getUiStateDelegate()
+        tokenStatsDelegate = mainChatCore.getTokenStatisticsDelegate()
+        apiConfigDelegate = mainChatCore.getApiConfigDelegate()
+        attachmentDelegate = mainChatCore.getAttachmentDelegate()
+        chatHistoryDelegate = mainChatCore.getChatHistoryDelegate()
+        messageProcessingDelegate = mainChatCore.getMessageProcessingDelegate()
+        messageCoordinationDelegate = mainChatCore.getMessageCoordinationDelegate()
 
-        // Then initialize message processing delegate
-        messageProcessingDelegate =
-                MessageProcessingDelegate(
-                        context = context,
-                        coroutineScope = viewModelScope,  // 改用 coroutineScope 参数
-                        getEnhancedAiService = { enhancedAiService },
-                        getChatHistory = { chatId -> chatHistoryDelegate.getChatHistory(chatId) },
-                        addMessageToChat = { targetChatId, message ->
-                            // 将消息固定写入指定聊天，避免在切换会话后串流到新会话
-                            // 这是suspend函数，在suspend上下文中会等待完成
-                            chatHistoryDelegate.addMessageToChat(message, targetChatId)
-                        },
-                        saveCurrentChat = {
-                            val (inputTokens, outputTokens) =
-                                    tokenStatsDelegate.getCumulativeTokenCounts()
-                            val currentWindowSize =
-                                    tokenStatsDelegate.getLastCurrentWindowSize()
-                            chatHistoryDelegate.saveCurrentChat(
-                                inputTokens,
-                                outputTokens,
-                                currentWindowSize
-                            )
-                            // 立即更新UI上的实际窗口大小
-                            if (currentWindowSize > 0) {
-                                // uiStateDelegate.updateCurrentWindowSize(currentWindowSize)
-                            }
-                        },
-                        showErrorMessage = { message -> uiStateDelegate.showErrorMessage(message) },
-                        updateChatTitle = { chatId, title ->
-                            chatHistoryDelegate.updateChatTitle(chatId, title)
-                        },
-                        onTurnComplete = { chatId, service ->
-                            // 轮次完成后，更新累计统计并保存聊天
-                            tokenStatsDelegate.updateCumulativeStatistics(chatId, service)
-                            val (inputTokens, outputTokens) =
-                                tokenStatsDelegate.getCumulativeTokenCounts(chatId)
-                            val windowSize = tokenStatsDelegate.getLastCurrentWindowSize(chatId)
-                            chatHistoryDelegate.saveCurrentChat(inputTokens, outputTokens, windowSize, chatIdOverride = chatId)
-                            
-                            // 如果悬浮窗正在运行，通知其重新加载消息
-                            if (isFloatingMode.value) {
-                                viewModelScope.launch {
-                                    floatingWindowDelegate.notifyFloatingServiceReload()
-                                }
-                            }
-                        },
-                        // 传递自动朗读状态和方法
-                        getIsAutoReadEnabled = { isAutoReadEnabled.value },
-                        speakMessage = { text, interrupt -> speakMessage(text, interrupt) },
-                        onTokenLimitExceeded = { chatId ->
-                            messageCoordinationDelegate.handleTokenLimitExceeded(chatId)
-                        }
-                )
+        enhancedAiService = mainChatCore.getEnhancedAiService()
+        mainChatCore.setUiBridge(
+                object : ChatServiceUiBridge {
+                    override fun updateWebServerForCurrentChat(chatId: String) {
+                        this@ChatViewModel.updateWebServerForCurrentChat(chatId)
+                    }
 
-        // Initialize message coordination delegate
-        messageCoordinationDelegate = 
-                MessageCoordinationDelegate(
-                        context = context,
-                        coroutineScope = viewModelScope,
-                        chatHistoryDelegate = chatHistoryDelegate,
-                        messageProcessingDelegate = messageProcessingDelegate,
-                        tokenStatsDelegate = tokenStatsDelegate,
-                        apiConfigDelegate = apiConfigDelegate,
-                        attachmentDelegate = attachmentDelegate,
-                        uiStateDelegate = uiStateDelegate,
-                        getEnhancedAiService = { enhancedAiService },
-                        updateWebServerForCurrentChat = ::updateWebServerForCurrentChat,
-                        resetAttachmentPanelState = ::resetAttachmentPanelState,
-                        clearReplyToMessage = ::clearReplyToMessage,
-                        getReplyToMessage = { replyToMessage.value }
-                )
+                    override fun resetAttachmentPanelState() {
+                        this@ChatViewModel.resetAttachmentPanelState()
+                    }
 
-        // Finally initialize floating window delegate
+                    override fun clearReplyToMessage() {
+                        this@ChatViewModel.clearReplyToMessage()
+                    }
+
+                    override fun getReplyToMessage(): ChatMessage? = replyToMessage.value
+                }
+        )
+        mainChatCore.setSpeakMessageHandler(::speakMessage)
+        mainChatCore.setOnEnhancedAiServiceReady { service ->
+            enhancedAiService = service
+            setupInputProcessingStateListener(service)
+        }
+
         floatingWindowDelegate =
                 FloatingWindowDelegate(
                         context = context,
                         coroutineScope = viewModelScope,
-                        inputProcessingState = this.currentChatInputProcessingState,
-                        chatHistoryFlow = chatHistoryDelegate.chatHistory,
-                        chatHistoryDelegate = chatHistoryDelegate,
-                        onChatStatsUpdate = { chatId, inputTokens, outputTokens, windowSize ->
-                            if (chatId != null) {
-                                tokenStatsDelegate.setActiveChatId(chatId)
-                                tokenStatsDelegate.setTokenCounts(chatId, inputTokens, outputTokens, windowSize)
-                            }
-                        }
+                        inputProcessingState = this.currentChatInputProcessingState
                 )
-
-        viewModelScope.launch {
-            chatHistoryDelegate.currentChatId.collect { chatId ->
-                tokenStatsDelegate.setActiveChatId(chatId)
-                if (chatId != null) {
-                    tokenStatsDelegate.bindChatService(chatId, EnhancedAIService.getChatInstance(context, chatId))
-                }
-            }
-        }
     }
 
     private fun setupPermissionSystemCollection() {
@@ -1876,6 +1784,11 @@ class ChatViewModel(private val context: Context) : ViewModel() {
         super.onCleared()
         // 清理悬浮窗资源
         floatingWindowDelegate.cleanup()
+
+        if (::mainChatCore.isInitialized) {
+            mainChatCore.setUiBridge(EmptyChatServiceUiBridge)
+            mainChatCore.setSpeakMessageHandler { _, _ -> }
+        }
         
         // 清理语音服务资源
         voiceService?.shutdown()

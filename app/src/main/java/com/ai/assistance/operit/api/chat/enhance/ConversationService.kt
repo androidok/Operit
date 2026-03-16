@@ -371,18 +371,18 @@ class ConversationService(
 
                 // 构建waifu特殊规则
                 val waifuRulesText = if(waifuPreferences.enableWaifuModeFlow.first()) buildWaifuRulesText() else ""
-                // 桌宠模式：添加<mood>标签协议（仅桌宠环境生效）
-                val desktopPetRulesText =
+                // 语音头像模式：添加 <mood> 标签协议
+                val avatarMoodRulesText =
                     if (shouldInjectMoodRules(promptFunctionType)) {
-                        buildDesktopPetMoodRulesText()
+                        buildAvatarMoodRulesText(useEnglish)
                     } else {
                         ""
                     }
-                AppLogger.d("petRules", desktopPetRulesText)
+                AppLogger.d("petRules", avatarMoodRulesText)
 
                 // 构建最终的系统提示词
                 val finalSystemPrompt = buildString {
-                    append(desktopPetRulesText)
+                    append(avatarMoodRulesText)
                     append(systemPrompt)
                     append(waifuRulesText)
                     if (!disableUserPreferenceDescription && preferencesText.isNotEmpty()) {
@@ -755,10 +755,10 @@ class ConversationService(
     }
 
     /**
-     * 桌宠模式的<mood>标签规则，仅在桌宠环境下添加到系统提示中。
+     * 虚拟形象的 <mood> 标签规则，仅在语音头像环境下添加到系统提示中。
      * 会自动拼接当前头像启用的自定义 mood 类型。
      */
-    private fun buildDesktopPetMoodRulesText(): String {
+    private fun buildAvatarMoodRulesText(useEnglish: Boolean): String {
         val currentAvatarId = avatarRepository.currentAvatar.value?.id
         val currentConfig =
             avatarRepository.configs.value.firstOrNull { config ->
@@ -773,13 +773,13 @@ class ConversationService(
                     moodAnimationMapping[definition.key]?.isNotBlank() == true
                 }
 
-        return FunctionalPrompts.desktopPetMoodRulesText(customMoodDefinitions)
+        return FunctionalPrompts.avatarMoodRulesText(
+            customMoodDefinitions = customMoodDefinitions,
+            useEnglish = useEnglish
+        )
     }
 
     private fun shouldInjectMoodRules(promptFunctionType: PromptFunctionType): Boolean {
-        if (promptFunctionType == PromptFunctionType.DESKTOP_PET) {
-            return true
-        }
         if (promptFunctionType != PromptFunctionType.VOICE) {
             return false
         }

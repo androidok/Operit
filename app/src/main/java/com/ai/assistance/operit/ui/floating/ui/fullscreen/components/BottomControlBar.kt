@@ -10,7 +10,9 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -23,8 +25,11 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -70,6 +75,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.pointer.PointerEventPass
@@ -145,6 +151,9 @@ fun BottomControlBar(
         }
     }
     val density = LocalDensity.current
+    val imeBottomPx = WindowInsets.ime.getBottom(density)
+    val navigationBarBottomPx = WindowInsets.navigationBars.getBottom(density)
+    val imeOffsetPx = (imeBottomPx - navigationBarBottomPx).coerceAtLeast(0)
     val attachmentTabsScrollState = rememberScrollState()
     val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
@@ -166,7 +175,15 @@ fun BottomControlBar(
 
     AnimatedVisibility(
         visible = visible,
-        modifier = modifier
+        enter = fadeIn(animationSpec = tween(180)) + slideInVertically(
+            initialOffsetY = { it / 2 },
+            animationSpec = tween(220)
+        ),
+        exit = fadeOut(animationSpec = tween(120)) + slideOutVertically(
+            targetOffsetY = { it / 3 },
+            animationSpec = tween(160)
+        ),
+        modifier = modifier.graphicsLayer { translationY = -imeOffsetPx.toFloat() }
     ) {
         Box(
             modifier = Modifier

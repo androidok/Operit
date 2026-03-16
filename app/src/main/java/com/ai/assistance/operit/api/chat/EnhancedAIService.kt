@@ -950,7 +950,12 @@ class EnhancedAIService private constructor(private val context: Context) {
                 AppLogger.d(TAG, "Stream content is empty. Finalizing conversation state.")
                 // We call handleTaskCompletion to properly set the conversation as inactive and update the UI state.
                 // We pass enableMemoryQuery = false because there's no content to analyze or save.
-                handleWaitForUserNeed(context, content, isSubTask)
+                handleWaitForUserNeed(
+                    context = context,
+                    content = content,
+                    isSubTask = isSubTask,
+                    chatId = chatId
+                )
                 return
             }
 
@@ -1019,7 +1024,15 @@ class EnhancedAIService private constructor(private val context: Context) {
 
             // 如果只有任务完成标记且没有工具调用，立即处理完成逻辑
             if (hasTaskCompletion && extractedToolInvocations.isEmpty()) {
-                handleTaskCompletion(context, enhancedContent, enableMemoryQuery, isSubTask, characterName, avatarUri)
+                handleTaskCompletion(
+                    context = context,
+                    content = enhancedContent,
+                    enableMemoryQuery = enableMemoryQuery,
+                    isSubTask = isSubTask,
+                    chatId = chatId,
+                    characterName = characterName,
+                    avatarUri = avatarUri
+                )
                 return
             }
 
@@ -1113,7 +1126,14 @@ class EnhancedAIService private constructor(private val context: Context) {
                     )
 
             // 处理为等待用户输入模式
-            handleWaitForUserNeed(context, userNeedContent, isSubTask, characterName, avatarUri)
+            handleWaitForUserNeed(
+                context = context,
+                content = userNeedContent,
+                isSubTask = isSubTask,
+                chatId = chatId,
+                characterName = characterName,
+                avatarUri = avatarUri
+            )
             AppLogger.d(TAG, "流完成处理耗时: ${System.currentTimeMillis() - startTime}ms")
         } catch (e: Exception) {
             // Catch any exceptions in the processing flow
@@ -1125,7 +1145,15 @@ class EnhancedAIService private constructor(private val context: Context) {
     }
 
     /** Handle task completion logic - simplified version without callbacks */
-    private suspend fun handleTaskCompletion(context: MessageExecutionContext, content: String, enableMemoryQuery: Boolean, isSubTask: Boolean, characterName: String? = null, avatarUri: String? = null) {
+    private suspend fun handleTaskCompletion(
+        context: MessageExecutionContext,
+        content: String,
+        enableMemoryQuery: Boolean,
+        isSubTask: Boolean,
+        chatId: String? = null,
+        characterName: String? = null,
+        avatarUri: String? = null
+    ) {
         // Mark conversation as complete
         context.isConversationActive.set(false)
 
@@ -1156,13 +1184,20 @@ class EnhancedAIService private constructor(private val context: Context) {
         }
 
         if (!isSubTask) {
-        // 在会话结束后停止服务（服务销毁时会自动发送通知）
+        notifyReplyCompleted(chatId, characterName, avatarUri)
         stopAiService(characterName, avatarUri)
         }
     }
 
     /** Handle wait for user need logic - simplified version without callbacks */
-    private suspend fun handleWaitForUserNeed(context: MessageExecutionContext, content: String, isSubTask: Boolean, characterName: String? = null, avatarUri: String? = null) {
+    private suspend fun handleWaitForUserNeed(
+        context: MessageExecutionContext,
+        content: String,
+        isSubTask: Boolean,
+        chatId: String? = null,
+        characterName: String? = null,
+        avatarUri: String? = null
+    ) {
         // Mark conversation as complete
         context.isConversationActive.set(false)
 
@@ -1181,7 +1216,7 @@ class EnhancedAIService private constructor(private val context: Context) {
 
         AppLogger.d(TAG, "Wait for user need - skipping problem library analysis")
         if (!isSubTask) {
-        // 在会话结束后停止服务（服务销毁时会自动发送通知）
+        notifyReplyCompleted(chatId, characterName, avatarUri)
         stopAiService(characterName, avatarUri)
         }
     }
@@ -1913,6 +1948,20 @@ class EnhancedAIService private constructor(private val context: Context) {
         }
     }
 
+    private fun notifyReplyCompleted(
+        chatId: String?,
+        characterName: String? = null,
+        avatarUri: String? = null
+    ) {
+        AIForegroundService.notifyReplyCompleted(
+            context = context,
+            chatId = chatId,
+            characterName = characterName,
+            rawReplyContent = lastReplyContent,
+            avatarUri = avatarUri
+        )
+    }
+
     /** 将前台服务更新为“空闲/已完成”状态，但不真正停止服务 */
     private fun stopAiService(characterName: String? = null, avatarUri: String? = null) {
         val remaining = run {
@@ -1936,16 +1985,14 @@ class EnhancedAIService private constructor(private val context: Context) {
          if (AIForegroundService.isRunning.get()) {
              AppLogger.d(TAG, "更新AI前台服务为闲置状态...")
 
-             // 准备通知数据并切换为 IDLE 状态
             try {
                 val stopIntent = Intent(context, AIForegroundService::class.java).apply {
                     putExtra(AIForegroundService.EXTRA_CHARACTER_NAME, characterName)
-                    putExtra(AIForegroundService.EXTRA_REPLY_CONTENT, lastReplyContent)
                     putExtra(AIForegroundService.EXTRA_AVATAR_URI, avatarUri)
                     putExtra(AIForegroundService.EXTRA_STATE, AIForegroundService.STATE_IDLE)
                 }
 
-                AppLogger.d(TAG, "传递通知数据(空闲) - 角色: $characterName, 内容长度: ${lastReplyContent?.length}, 头像: $avatarUri")
+                AppLogger.d(TAG, "传递闲置状态 - 角色: $characterName, 头像: $avatarUri")
 
                 // 仅发送更新，不再真正停止前台服务
                 context.startService(stopIntent)

@@ -42,6 +42,7 @@ import com.ai.assistance.operit.services.UIDebuggerService
 import com.ai.assistance.operit.data.preferences.DisplayPreferencesManager
 import com.ai.assistance.operit.data.preferences.WakeWordPreferences
 import com.ai.assistance.operit.data.repository.WorkflowRepository
+import com.ai.assistance.operit.ui.main.MainActivity
 import com.ai.assistance.operit.util.WaifuMessageProcessor
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -50,6 +51,8 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -61,6 +64,7 @@ import kotlinx.coroutines.sync.withLock
 import kotlin.system.exitProcess
 import java.io.FileInputStream
 import java.io.InputStream
+import java.util.concurrent.ConcurrentHashMap
 
 private fun AudioRecordingConfiguration.tryGetClientUid(): Int? {
     return try {
@@ -102,6 +106,7 @@ class AIForegroundService : Service() {
 
         private const val ACTION_TOGGLE_WAKE_LISTENING = "com.ai.assistance.operit.action.TOGGLE_WAKE_LISTENING"
         private const val REQUEST_CODE_TOGGLE_WAKE_LISTENING = 9006
+        private const val REPLY_NOTIFICATION_TAG_PREFIX = "ai_reply:"
 
         private const val ACTION_SET_WAKE_LISTENING_SUSPENDED_FOR_IME =
             "com.ai.assistance.operit.action.SET_WAKE_LISTENING_SUSPENDED_FOR_IME"
@@ -122,14 +127,175 @@ class AIForegroundService : Service() {
 
         // 静态标志，用于从外部检查服务是否正在运行
         val isRunning = java.util.concurrent.atomic.AtomicBoolean(false)
+        private val activeReplyNotificationTags = ConcurrentHashMap.newKeySet<String>()
         
         // Intent extras keys
         const val EXTRA_CHARACTER_NAME = "extra_character_name"
-        const val EXTRA_REPLY_CONTENT = "extra_reply_content"
         const val EXTRA_AVATAR_URI = "extra_avatar_uri"
         const val EXTRA_STATE = "extra_state"
         const val STATE_RUNNING = "running"
         const val STATE_IDLE = "idle"
+
+        private fun buildReplyNotificationTag(chatId: String?): String {
+            val suffix = chatId?.ifBlank { "default" } ?: "default"
+            return "$REPLY_NOTIFICATION_TAG_PREFIX$suffix"
+        }
+
+        private fun createMainActivityPendingIntent(context: Context): PendingIntent {
+            val intent = Intent(context, MainActivity::class.java).apply {
+                flags =
+                    Intent.FLAG_ACTIVITY_NEW_TASK or
+                        Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                        Intent.FLAG_ACTIVITY_SINGLE_TOP
+            }
+            return PendingIntent.getActivity(
+                context,
+                0,
+                intent,
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+                } else {
+                    PendingIntent.FLAG_UPDATE_CURRENT
+                }
+            )
+        }
+
+        private fun ensureReplyNotificationChannel(context: Context) {
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
+                return
+            }
+            val replyChannel =
+                NotificationChannel(
+                    REPLY_CHANNEL_ID,
+                    context.getString(R.string.service_chat_complete_reminder),
+                    NotificationManager.IMPORTANCE_HIGH
+                ).apply {
+                    description = context.getString(R.string.service_notify_when_complete)
+                }
+            val manager =
+                context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            manager.createNotificationChannel(replyChannel)
+        }
+
+        private fun loadBitmapFromUri(context: Context, uriString: String): Bitmap? {
+            return try {
+                val uri = Uri.parse(uriString)
+                val inputStream: InputStream? =
+                    when (uri.scheme) {
+                        "file" -> {
+                            val path = uri.path
+                            if (path != null && path.startsWith("/android_asset/")) {
+                                context.assets.open(path.removePrefix("/android_asset/"))
+                            } else if (!path.isNullOrEmpty()) {
+                                FileInputStream(path)
+                            } else {
+                                null
+                            }
+                        }
+                        null -> {
+                            if (uriString.startsWith("/android_asset/")) {
+                                context.assets.open(uriString.removePrefix("/android_asset/"))
+                            } else {
+                                try {
+                                    FileInputStream(uriString)
+                                } catch (_: Exception) {
+                                    context.contentResolver.openInputStream(uri)
+                                }
+                            }
+                        }
+                        else -> context.contentResolver.openInputStream(uri)
+                    }
+                inputStream?.use { stream ->
+                    BitmapFactory.decodeStream(stream)
+                }
+            } catch (e: Exception) {
+                AppLogger.e(TAG, "从URI加载Bitmap失败: ${e.message}", e)
+                null
+            }
+        }
+
+        fun notifyReplyCompleted(
+            context: Context,
+            chatId: String?,
+            characterName: String?,
+            rawReplyContent: String?,
+            avatarUri: String?
+        ) {
+            try {
+                AppLogger.d(TAG, "检查是否需要发送会话完成通知: chatId=$chatId")
+
+                if (ActivityLifecycleManager.getCurrentActivity() != null) {
+                    AppLogger.d(TAG, "应用在前台，无需发送会话完成通知")
+                    return
+                }
+
+                val appContext = context.applicationContext
+                val displayPreferences = DisplayPreferencesManager.getInstance(appContext)
+                val enableReplyNotification = runBlocking {
+                    displayPreferences.enableReplyNotification.first()
+                }
+                if (!enableReplyNotification) {
+                    AppLogger.d(TAG, "回复通知已禁用，跳过发送")
+                    return
+                }
+
+                if (rawReplyContent.isNullOrBlank()) {
+                    AppLogger.d(TAG, "回复内容为空，跳过发送回复通知: chatId=$chatId")
+                    return
+                }
+
+                ensureReplyNotificationChannel(appContext)
+
+                val cleanedReplyContent = WaifuMessageProcessor.cleanContentForWaifu(rawReplyContent)
+                val notificationBuilder =
+                    NotificationCompat.Builder(appContext, REPLY_CHANNEL_ID)
+                        .setSmallIcon(android.R.drawable.ic_dialog_info)
+                        .setContentTitle(
+                            characterName
+                                ?: appContext.getString(R.string.notification_ai_reply_title)
+                        )
+                        .setContentText(
+                            cleanedReplyContent
+                                .take(100)
+                                .ifEmpty {
+                                    appContext.getString(R.string.notification_ai_reply_content)
+                                }
+                        )
+                        .setPriority(NotificationCompat.PRIORITY_HIGH)
+                        .setDefaults(NotificationCompat.DEFAULT_ALL)
+                        .setCategory(NotificationCompat.CATEGORY_STATUS)
+                        .setContentIntent(createMainActivityPendingIntent(appContext))
+                        .setAutoCancel(true)
+
+                if (cleanedReplyContent.isNotEmpty()) {
+                    notificationBuilder.setStyle(
+                        NotificationCompat.BigTextStyle()
+                            .bigText(cleanedReplyContent)
+                            .setBigContentTitle(
+                                characterName
+                                    ?: appContext.getString(R.string.notification_ai_reply_title)
+                            )
+                    )
+                }
+
+                if (!avatarUri.isNullOrEmpty()) {
+                    val bitmap = loadBitmapFromUri(appContext, avatarUri)
+                    if (bitmap != null) {
+                        notificationBuilder.setLargeIcon(bitmap)
+                    }
+                }
+
+                val manager =
+                    appContext.getSystemService(Context.NOTIFICATION_SERVICE)
+                        as NotificationManager
+                val tag = buildReplyNotificationTag(chatId)
+                activeReplyNotificationTags.add(tag)
+                manager.notify(tag, REPLY_NOTIFICATION_ID, notificationBuilder.build())
+                AppLogger.d(TAG, "AI回复通知已发送: chatId=$chatId, tag=$tag")
+            } catch (e: Exception) {
+                AppLogger.e(TAG, "发送AI回复通知失败: ${e.message}", e)
+            }
+        }
 
         fun setWakeListeningSuspendedForIme(context: Context, imeVisible: Boolean) {
             lastRequestedImeVisible = imeVisible
@@ -374,11 +540,11 @@ class AIForegroundService : Service() {
     
     // 存储通知信息
     private var characterName: String? = null
-    private var replyContent: String? = null
     private var avatarUri: String? = null
     private var isAiBusy: Boolean = false
 
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private val chatRuntimeHolder by lazy { ChatRuntimeHolder.getInstance(applicationContext) }
     private val wakePrefs by lazy { WakeWordPreferences(applicationContext) }
     @Volatile
     private var wakeSpeechProvider: SpeechService? = null
@@ -464,6 +630,7 @@ class AIForegroundService : Service() {
         isRunning.set(true)
         wakeListeningSuspendedForIme = lastRequestedImeVisible
         AppLogger.d(TAG, "AI 前台服务创建。")
+        chatRuntimeHolder
         createNotificationChannel()
         val notification = createNotification()
         ForegroundServiceCompat.startForeground(
@@ -472,8 +639,24 @@ class AIForegroundService : Service() {
             notification = notification,
             types = ForegroundServiceCompat.buildTypes(dataSync = true)
         )
+        observeChatRuntimeStats()
         startWakeMonitoring()
         AppLogger.d(TAG, "AI 前台服务已启动。")
+    }
+
+    private fun observeChatRuntimeStats() {
+        serviceScope.launch {
+            combine(
+                chatRuntimeHolder.activeConversationCount,
+                chatRuntimeHolder.currentSessionToolCount
+            ) { _, _ ->
+                Unit
+            }.collect {
+                if (!isRunning.get()) return@collect
+                val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+                manager.notify(NOTIFICATION_ID, createNotification())
+            }
+        }
     }
 
     private fun hasRecordAudioPermission(): Boolean {
@@ -563,6 +746,10 @@ class AIForegroundService : Service() {
             try {
                 val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
                 manager.cancel(NOTIFICATION_ID)
+                activeReplyNotificationTags.forEach { tag ->
+                    manager.cancel(tag, REPLY_NOTIFICATION_ID)
+                }
+                activeReplyNotificationTags.clear()
                 manager.cancel(REPLY_NOTIFICATION_ID)
             } catch (e: Exception) {
                 AppLogger.e(TAG, "退出时取消通知失败: ${e.message}", e)
@@ -671,9 +858,8 @@ class AIForegroundService : Service() {
         // 从Intent中提取通知信息
         intent?.let {
             characterName = it.getStringExtra(EXTRA_CHARACTER_NAME)
-            replyContent = it.getStringExtra(EXTRA_REPLY_CONTENT)
             avatarUri = it.getStringExtra(EXTRA_AVATAR_URI)
-            AppLogger.d(TAG, "收到通知数据 - 角色: $characterName, 内容长度: ${replyContent?.length}, 头像: $avatarUri")
+            AppLogger.d(TAG, "收到通知数据 - 角色: $characterName, 头像: $avatarUri")
 
             val state = it.getStringExtra(EXTRA_STATE)
             if (state != null) {
@@ -693,9 +879,6 @@ class AIForegroundService : Service() {
                 }
                 val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
                 manager.notify(NOTIFICATION_ID, createNotification())
-                if (!isAiBusy) {
-                    sendReplyNotificationIfEnabled()
-                }
             }
         }
         
@@ -1255,27 +1438,42 @@ class AIForegroundService : Service() {
                     getString(R.string.service_operit_running)
                 }
             }
+        val activeConversationCount = chatRuntimeHolder.activeConversationCount.value
+        val currentSessionToolCount = chatRuntimeHolder.currentSessionToolCount.value
+        val contentText =
+            if (isAiBusy && activeConversationCount > 0) {
+                getString(
+                    R.string.service_running_stats,
+                    activeConversationCount,
+                    currentSessionToolCount
+                )
+            } else {
+                getString(R.string.service_operit_running)
+            }
         val builder = NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle(title)
-            .setContentText(getString(R.string.service_operit_running))
+            .setContentText(contentText)
             .setSmallIcon(android.R.drawable.ic_dialog_info)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .setOngoing(true) // 使通知不可被用户清除
 
-        val contentIntent = packageManager.getLaunchIntentForPackage(packageName)
-        if (contentIntent != null) {
-            val contentPendingIntent = PendingIntent.getActivity(
-                this,
-                0,
-                contentIntent,
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                    PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
-                } else {
-                    PendingIntent.FLAG_UPDATE_CURRENT
-                }
-            )
-            builder.setContentIntent(contentPendingIntent)
+        val contentIntent = Intent(this, MainActivity::class.java).apply {
+            flags =
+                Intent.FLAG_ACTIVITY_NEW_TASK or
+                    Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                    Intent.FLAG_ACTIVITY_SINGLE_TOP
         }
+        val contentPendingIntent = PendingIntent.getActivity(
+            this,
+            0,
+            contentIntent,
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+            } else {
+                PendingIntent.FLAG_UPDATE_CURRENT
+            }
+        )
+        builder.setContentIntent(contentPendingIntent)
 
         val floatingIntent = Intent(this, FloatingChatService::class.java).apply {
             putExtra("INITIAL_MODE", com.ai.assistance.operit.ui.floating.FloatingMode.FULLSCREEN.name)
@@ -1370,137 +1568,4 @@ class AIForegroundService : Service() {
         return builder.build()
     }
     
-    /**
-     * 如果用户启用了回复通知，则发送AI回复完成通知
-     */
-    private fun sendReplyNotificationIfEnabled() {
-        try {
-            AppLogger.d(TAG, "检查是否需要发送回复通知...")
-            
-            // 检查应用是否在前台
-            val isAppInForeground = ActivityLifecycleManager.getCurrentActivity() != null
-            if (isAppInForeground) {
-                AppLogger.d(TAG, "应用在前台，无需发送通知")
-                return
-            }
-            
-            // 检查用户是否启用了回复通知
-            val displayPreferences = DisplayPreferencesManager.getInstance(applicationContext)
-            val enableReplyNotification = runBlocking {
-                displayPreferences.enableReplyNotification.first()
-            }
-            
-            if (!enableReplyNotification) {
-                AppLogger.d(TAG, "回复通知已禁用，跳过发送")
-                return
-            }
-            
-            val rawReplyContent = replyContent
-            if (rawReplyContent.isNullOrBlank()) {
-                AppLogger.d(TAG, "回复内容为空，跳过发送回复通知")
-                return
-            }
-
-            AppLogger.d(TAG, "准备发送AI回复通知...")
-            
-            // 清理回复内容，移除思考内容等
-            val cleanedReplyContent = WaifuMessageProcessor.cleanContentForWaifu(rawReplyContent)
-            
-            // 创建点击通知后打开应用的Intent
-            val intent = packageManager.getLaunchIntentForPackage(packageName)
-            val pendingIntent = PendingIntent.getActivity(
-                this,
-                0,
-                intent,
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                    PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
-                } else {
-                    PendingIntent.FLAG_UPDATE_CURRENT
-                }
-            )
-            
-            // 构建通知
-            val notificationBuilder = NotificationCompat.Builder(this, REPLY_CHANNEL_ID)
-                .setSmallIcon(android.R.drawable.ic_dialog_info)
-                .setContentTitle(characterName ?: getString(R.string.notification_ai_reply_title))
-                .setContentText(cleanedReplyContent.take(100).ifEmpty { getString(R.string.notification_ai_reply_content) })
-                .setPriority(NotificationCompat.PRIORITY_HIGH)
-                .setDefaults(NotificationCompat.DEFAULT_ALL)
-                .setCategory(NotificationCompat.CATEGORY_STATUS)
-                .setContentIntent(pendingIntent)
-                .setAutoCancel(true) // 点击后自动消失
-            
-            // 如果有完整内容，使用BigTextStyle显示更多文本
-            if (cleanedReplyContent.isNotEmpty()) {
-                notificationBuilder.setStyle(
-                    NotificationCompat.BigTextStyle()
-                        .bigText(cleanedReplyContent)
-                        .setBigContentTitle(characterName ?: getString(R.string.notification_ai_reply_title))
-                )
-            }
-            
-            // 如果有头像，设置大图标
-            val avatarUriString = avatarUri
-            if (!avatarUriString.isNullOrEmpty()) {
-                try {
-                    val bitmap = loadBitmapFromUri(avatarUriString)
-                    if (bitmap != null) {
-                        notificationBuilder.setLargeIcon(bitmap)
-                        AppLogger.d(TAG, "成功加载头像到通知")
-                    }
-                } catch (e: Exception) {
-                    AppLogger.e(TAG, "加载头像失败: ${e.message}", e)
-                }
-            }
-            
-            val notification = notificationBuilder.build()
-            
-            // 发送通知
-            val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-            notificationManager.notify(REPLY_NOTIFICATION_ID, notification)
-            AppLogger.d(TAG, "AI回复通知已发送 (ID: $REPLY_NOTIFICATION_ID)")
-        } catch (e: Exception) {
-            AppLogger.e(TAG, "发送AI回复通知失败: ${e.message}", e)
-        }
-    }
-    
-    /**
-     * 从URI加载Bitmap
-     */
-    private fun loadBitmapFromUri(uriString: String): Bitmap? {
-        return try {
-            val uri = Uri.parse(uriString)
-            val inputStream: InputStream? =
-                when (uri.scheme) {
-                    "file" -> {
-                        val path = uri.path
-                        if (path != null && path.startsWith("/android_asset/")) {
-                            assets.open(path.removePrefix("/android_asset/"))
-                        } else if (!path.isNullOrEmpty()) {
-                            FileInputStream(path)
-                        } else {
-                            null
-                        }
-                    }
-                    null -> {
-                        if (uriString.startsWith("/android_asset/")) {
-                            assets.open(uriString.removePrefix("/android_asset/"))
-                        } else {
-                            try {
-                                FileInputStream(uriString)
-                            } catch (_: Exception) {
-                                contentResolver.openInputStream(uri)
-                            }
-                        }
-                    }
-                    else -> contentResolver.openInputStream(uri)
-                }
-            inputStream?.use { stream ->
-                BitmapFactory.decodeStream(stream)
-            }
-        } catch (e: Exception) {
-            AppLogger.e(TAG, "从URI加载Bitmap失败: ${e.message}", e)
-            null
-        }
-    }
 }
