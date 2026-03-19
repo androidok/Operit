@@ -1,9 +1,9 @@
 [OVERALL]
-Total strings found: 1989
-Excluded logs: 1841
-Excluded long prompts(>100 chars): 61
-Remaining UI strings: 87
-Files with Chinese strings: 146
+Total strings found: 1956
+Excluded logs: 1804
+Excluded long prompts(>100 chars): 53
+Remaining UI strings: 99
+Files with Chinese strings: 144
 
 [BY MODULE]
 
@@ -11,27 +11,27 @@ Files with Chinese strings: 146
 ================================================================================
 FILE: app\src\main\java\com\ai\assistance\operit\ui\floating\ui\pet\AvatarEmotionManager.kt
   remaining=21 total=24 excluded_logs=3 excluded_long=0
-  L21:36 (2 chars) "开心"
-  L21:42 (2 chars) "高兴"
-  L21:48 (2 chars) "不错"
-  L21:54 (1 chars) "棒"
-  L21:59 (3 chars) "太好了"
-  L21:86 (1 chars) "赞"
-  L22:36 (2 chars) "生气"
-  L22:42 (2 chars) "愤怒"
-  L22:48 (2 chars) "气死"
-  L22:54 (2 chars) "讨厌"
-  L22:60 (2 chars) "糟糕"
-  L22:71 (1 chars) "怒"
-  L23:34 (2 chars) "难过"
-  L23:40 (2 chars) "伤心"
-  L23:46 (2 chars) "沮丧"
-  L23:52 (2 chars) "忧伤"
-  L23:58 (1 chars) "哭"
-  L24:34 (2 chars) "害羞"
-  L24:40 (1 chars) "羞"
-  L24:45 (2 chars) "脸红"
-  L24:51 (4 chars) "不好意思"
+  L19:36 (2 chars) "开心"
+  L19:42 (2 chars) "高兴"
+  L19:48 (2 chars) "不错"
+  L19:54 (1 chars) "棒"
+  L19:59 (3 chars) "太好了"
+  L19:86 (1 chars) "赞"
+  L20:36 (2 chars) "生气"
+  L20:42 (2 chars) "愤怒"
+  L20:48 (2 chars) "气死"
+  L20:54 (2 chars) "讨厌"
+  L20:60 (2 chars) "糟糕"
+  L20:71 (1 chars) "怒"
+  L21:34 (2 chars) "难过"
+  L21:40 (2 chars) "伤心"
+  L21:46 (2 chars) "沮丧"
+  L21:52 (2 chars) "忧伤"
+  L21:58 (1 chars) "哭"
+  L22:34 (2 chars) "害羞"
+  L22:40 (1 chars) "羞"
+  L22:45 (2 chars) "脸红"
+  L22:51 (4 chars) "不好意思"
 
 FILE: app\src\main\java\com\ai\assistance\operit\ui\features\toolbox\screens\autoglm\AutoGlmViewModel.kt
   remaining=11 total=11 excluded_logs=0 excluded_long=0
@@ -104,6 +104,23 @@ FILE: app\src\main\java\com\ai\assistance\operit\ui\features\toolbox\screens\log
   L26:12 (2 chars) "静默"
   L27:13 (2 chars) "未知"
 
+FILE: app\src\main\java\com\ai\assistance\operit\core\chat\AIMessageManager.kt
+  remaining=6 total=29 excluded_logs=23 excluded_long=0
+  L869:61 (7 chars) "【工具包预热】"
+  L877:21 (28 chars) "本次摘要范围内未检测到包工具调用，因此未进行工具包预热。"
+  L886:17 (61 chars) "以下根据本次摘要范围内的工具使用频次，自动激活了最高频的工具包，并附上 use_package 的返回结果，供下一轮预热。"
+  L901:37 (41 chars) "use_package 调用失败: ${throwable.message ?: "
+  L908:37 (17 chars) "use_package 返回为空。"
+  L915:36 (55 chars) "${index + 1}. 包 ${stat.packageName}（命中 ${stat.count} 次）"
+
+FILE: app\src\main\java\com\ai\assistance\operit\core\avatar\common\state\AvatarMoodType.kt
+  remaining=5 total=5 excluded_logs=0 excluded_long=0
+  L22:30 (24 chars) "用户表达侮辱、不公、责备、生气或强烈不满时使用。"
+  L29:30 (27 chars) "用户表达明确表扬、达成目标、收到礼物或明显开心时使用。"
+  L36:30 (24 chars) "用户夸奖、暧昧、戳中可爱点，角色表现害羞时使用。"
+  L43:30 (21 chars) "用户调侃、轻微争执、角色嘴硬又软化时使用。"
+  L50:30 (23 chars) "用户失落、难过、受挫、哭诉或道歉后低落时使用。"
+
 FILE: app\src\main\java\com\ai\assistance\operit\data\converter\GenericJsonConverter.kt
   remaining=3 total=3 excluded_logs=0 excluded_long=0
   L203:30 (2 chars) "用户"
@@ -116,9 +133,14 @@ FILE: app\src\main\java\com\ai\assistance\operit\util\LocaleUtils.kt
   L32:43 (2 chars) "中文"
 
 FILE: app\src\main\java\com\ai\assistance\operit\data\mcp\plugins\MCPBridge.kt
-  remaining=2 total=40 excluded_logs=38 excluded_long=0
-  L539:60 (32 chars) "命令[$cmdId: $cmdType]没有收到响应（独立连接）"
-  L589:56 (26 chars) "命令[$cmdId: $cmdType]没有收到响应"
+  remaining=2 total=39 excluded_logs=37 excluded_long=0
+  L537:60 (32 chars) "命令[$cmdId: $cmdType]没有收到响应（独立连接）"
+  L587:56 (26 chars) "命令[$cmdId: $cmdType]没有收到响应"
+
+FILE: app\src\main\java\com\ai\assistance\operit\services\core\MessageCoordinationDelegate.kt
+  remaining=2 total=34 excluded_logs=32 excluded_long=0
+  L777:13 (13 chars) "$userName（用户）"
+  L779:13 (6 chars) "用户（用户）"
 
 FILE: app\src\main\java\com\ai\assistance\operit\util\stream\StreamGroup.kt
   remaining=2 total=7 excluded_logs=5 excluded_long=0
@@ -127,11 +149,7 @@ FILE: app\src\main\java\com\ai\assistance\operit\util\stream\StreamGroup.kt
 
 FILE: app\src\main\java\com\ai\assistance\operit\api\chat\llmprovider\LlamaProvider.kt
   remaining=1 total=6 excluded_logs=5 excluded_long=0
-  L549:13 (76 chars) "\n已启用 Tool Call 模式。\n调用工具时，请输出顶层为 "tool_calls" 的合法 JSON。\n仅可使用以下工具名：$toolNames\n"
-
-FILE: app\src\main\java\com\ai\assistance\operit\api\chat\plan\PlanModeManager.kt
-  remaining=1 total=10 excluded_logs=8 excluded_long=1
-  L289:16 (53 chars) "\n$PLAN_GENERATION_PROMPT\n\n用户请求：\n$userMessage\n        "
+  L550:13 (76 chars) "\n已启用 Tool Call 模式。\n调用工具时，请输出顶层为 "tool_calls" 的合法 JSON。\n仅可使用以下工具名：$toolNames\n"
 
 FILE: app\src\main\java\com\ai\assistance\operit\data\converter\ChatFormatDetector.kt
   remaining=1 total=1 excluded_logs=0 excluded_long=0
@@ -139,5 +157,5 @@ FILE: app\src\main\java\com\ai\assistance\operit\data\converter\ChatFormatDetect
 
 FILE: app\src\main\java\com\ai\assistance\operit\ui\features\workflow\viewmodel\WorkflowViewModel.kt
   remaining=1 total=1 excluded_logs=0 excluded_long=0
-  L923:30 (24 chars) ".*(打开|启动).*(对话|聊天|悬浮窗).*"
+  L925:30 (24 chars) ".*(打开|启动).*(对话|聊天|悬浮窗).*"
 

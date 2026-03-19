@@ -9,6 +9,7 @@
   <br>
   <a href="https://github.com/AAswordman/Operit/stargazers"><img src="https://img.shields.io/github/stars/AAswordman/Operit" alt="GitHub Stars"></a>
   <a href="https://aaswordman.github.io/OperitWeb"><img src="https://img.shields.io/badge/📖-User_Guide-blue.svg" alt="User Guide"></a>
+  <a href="https://afdian.com/a/aaswordsman"><img src="https://img.shields.io/badge/💖-Support_Development-ff6b6b.svg" alt="Support Development"></a>
   <a href="docs/CONTRIBUTING.md"><img src="https://img.shields.io/badge/contributions-welcome-brightgreen.svg" alt="Contributions Welcome"></a>
   <br>
   <a href="mailto:aaswordsman@foxmail.com"><img src="https://img.shields.io/badge/📧-Email-red.svg" alt="Email"></a>
@@ -398,6 +399,14 @@ Thanks to all who have contributed to Operit AI!
 <a href="https://github.com/AAswordman/Operit/graphs/contributors">
   <img src="https://contrib.rocks/image?repo=AAswordman/Operit" />
 </a>
+
+## 💖 Support Development
+
+If Operit AI has been helpful to you, you can support its ongoing development and basic project maintenance on [Afdian](https://afdian.com/a/aaswordsman).
+
+- Support is entirely voluntary and does not unlock any features, quotas, updates, support replies, or other perks
+- Choosing not to support does not affect normal usage, updates, or access to the open-source code
+- You can also use the `Sponsor` button at the top of this GitHub repository to open the support page
 
 ---
 
