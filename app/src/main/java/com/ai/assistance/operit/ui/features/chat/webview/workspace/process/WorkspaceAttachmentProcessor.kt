@@ -5,6 +5,7 @@ import com.ai.assistance.operit.util.AppLogger
 import com.ai.assistance.operit.R
 import com.ai.assistance.operit.core.tools.AIToolHandler
 import com.ai.assistance.operit.core.tools.DirectoryListingData
+import com.ai.assistance.operit.core.tools.FileContentData
 import com.ai.assistance.operit.data.model.AITool
 import com.ai.assistance.operit.data.model.ToolParameter
 import kotlinx.coroutines.Dispatchers
@@ -21,6 +22,7 @@ import java.util.Locale
  */
 object WorkspaceAttachmentProcessor {
     private const val TAG = "WorkspaceAttachmentProcessor"
+    private val WORKSPACE_RULE_FILE_NAMES = listOf("AGENT.md", "AGENTS.md")
 
     private const val DEFAULT_TIME_PATTERN_WITH_MS = "yyyy-MM-dd HH:mm:ss.SSS"
     private const val DEFAULT_TIME_PATTERN_NO_MS = "yyyy-MM-dd HH:mm:ss"
@@ -28,6 +30,49 @@ object WorkspaceAttachmentProcessor {
     // 用于缓存工作区状态
     private data class FileMetadata(val path: String, val size: Long, val lastModified: String, val isDirectory: Boolean)
     private val workspaceStateCache = mutableMapOf<String, List<FileMetadata>>()
+
+    data class WorkspaceRuleFile(val name: String, val content: String)
+
+    /**
+     * Read workspace root rule files through the unified file-system tool layer so
+     * Android, Linux, and repo environments share the same path resolution logic.
+     */
+    suspend fun readWorkspaceRootRuleFile(
+        context: Context,
+        workspacePath: String?,
+        workspaceEnv: String? = null
+    ): WorkspaceRuleFile? = withContext(Dispatchers.IO) {
+        if (workspacePath.isNullOrBlank()) {
+            return@withContext null
+        }
+
+        val toolHandler = AIToolHandler.getInstance(context)
+
+        for (fileName in WORKSPACE_RULE_FILE_NAMES) {
+            val filePath = buildWorkspaceChildPath(workspacePath, fileName)
+            val parameters = buildList {
+                add(ToolParameter("path", filePath))
+                add(ToolParameter("text_only", "true"))
+                if (!workspaceEnv.isNullOrBlank()) {
+                    add(ToolParameter("environment", workspaceEnv))
+                }
+            }
+
+            val result =
+                toolHandler.executeTool(
+                    AITool(
+                        name = "read_file_full",
+                        parameters = parameters
+                    )
+                )
+            val content = (result.result as? FileContentData)?.content?.trim().orEmpty()
+            if (result.success && content.isNotBlank()) {
+                return@withContext WorkspaceRuleFile(name = fileName, content = content)
+            }
+        }
+
+        null
+    }
 
     /**
      * 生成工作区附着XML内容
@@ -632,6 +677,15 @@ object WorkspaceAttachmentProcessor {
 
     private fun makeCacheKey(workspacePath: String, workspaceEnv: String?): String {
         return if (workspaceEnv.isNullOrBlank()) workspacePath else "$workspaceEnv::$workspacePath"
+    }
+
+    private fun buildWorkspaceChildPath(workspacePath: String, childName: String): String {
+        val normalizedRoot = workspacePath.trim().ifBlank { "/" }
+        return if (normalizedRoot == "/") {
+            "/$childName"
+        } else {
+            normalizedRoot.trimEnd('/') + "/$childName"
+        }
     }
 
     private suspend fun loadGitIgnoreRules(

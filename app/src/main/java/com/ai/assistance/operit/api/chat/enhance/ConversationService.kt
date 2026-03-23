@@ -353,6 +353,7 @@ class ConversationService(
 
                 // 获取系统提示词，现在传入workspacePath和识图配置状态
                 val systemPrompt = SystemPromptConfig.getSystemPromptWithCustomPrompts(
+                    context = context,
                     packageManager = packageManager,
                     workspacePath = workspacePath,
                     workspaceEnv = workspaceEnv,

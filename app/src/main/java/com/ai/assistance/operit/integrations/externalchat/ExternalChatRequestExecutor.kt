@@ -3,15 +3,16 @@ package com.ai.assistance.operit.integrations.externalchat
 import android.content.Context
 import com.ai.assistance.operit.core.tools.ChatListResultData
 import com.ai.assistance.operit.core.tools.MessageSendResultData
-import com.ai.assistance.operit.core.tools.ToolResult
 import com.ai.assistance.operit.core.tools.defaultTool.standard.MessageSendStreamSession
 import com.ai.assistance.operit.core.tools.defaultTool.standard.MessageSendStreamStartResult
 import com.ai.assistance.operit.core.tools.defaultTool.standard.StandardChatManagerTool
 import com.ai.assistance.operit.data.model.AITool
+import com.ai.assistance.operit.data.model.ToolResult
 import com.ai.assistance.operit.data.model.ToolParameter
 import com.ai.assistance.operit.util.AppLogger
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicBoolean
+import kotlinx.coroutines.runBlocking
 
 class ExternalChatStreamingSession(
     val requestId: String,
@@ -192,7 +193,11 @@ class ExternalChatRequestExecutor(context: Context) {
             ),
             cleanupAction = {
                 if (request.stopAfter) {
-                    runCatching { chatTool.stopChatService(AITool(name = "stop_chat_service")) }
+                    runCatching {
+                        runBlocking {
+                            chatTool.stopChatService(AITool(name = "stop_chat_service"))
+                        }
+                    }
                 }
             }
         )

@@ -1,12 +1,13 @@
 package com.ai.assistance.operit.core.config
 
+import android.content.Context
 import com.ai.assistance.operit.core.chat.hooks.PromptHookContext
 import com.ai.assistance.operit.core.chat.hooks.PromptHookRegistry
 import com.ai.assistance.operit.core.tools.packTool.PackageManager
 import com.ai.assistance.operit.data.preferences.ApiPreferences
 import com.ai.assistance.operit.data.skill.SkillRepository
+import com.ai.assistance.operit.ui.features.chat.webview.workspace.process.WorkspaceAttachmentProcessor
 import com.ai.assistance.operit.util.LocaleUtils
-import java.io.File
 
 object SystemPromptConfig {
 
@@ -371,7 +372,8 @@ AVAILABLE_TOOLS_SECTION""".trimIndent()
    * @param chatModelHasDirectImage Whether the chat model has direct image capability
    * @return The complete system prompt with package information
    */
-  fun getSystemPrompt(
+  suspend fun getSystemPrompt(
+          context: Context,
           packageManager: PackageManager,
           workspacePath: String? = null,
           workspaceEnv: String? = null,
@@ -478,8 +480,21 @@ AVAILABLE_TOOLS_SECTION""".trimIndent()
     val defaultBehaviorGuidelines = if (useEnglish) BEHAVIOR_GUIDELINES_EN else BEHAVIOR_GUIDELINES_CN
     val behaviorGuidelines = getBehaviorGuidelines(useEnglish, disableStatusTags)
 
+    val workspaceRuleFile =
+        WorkspaceAttachmentProcessor.readWorkspaceRootRuleFile(
+            context = context,
+            workspacePath = workspacePath,
+            workspaceEnv = workspaceEnv
+        )
+
     // Generate workspace guidelines
-    val workspaceGuidelines = getWorkspaceGuidelines(workspacePath, workspaceEnv, useEnglish)
+    val workspaceGuidelines = getWorkspaceGuidelines(
+        workspacePath = workspacePath,
+        workspaceEnv = workspaceEnv,
+        useEnglish = useEnglish,
+        workspaceRuleFileName = workspaceRuleFile?.name,
+        workspaceRuleFileContent = workspaceRuleFile?.content.orEmpty()
+    )
 
     // Build prompt with appropriate sections
     var prompt = templateToUse
@@ -630,11 +645,46 @@ AVAILABLE_TOOLS_SECTION""".trimIndent()
    * @param useEnglish Whether to use the English or Chinese version of the guidelines.
    * @return A string containing the appropriate workspace guidelines.
    */
-  private fun getWorkspaceGuidelines(workspacePath: String?, workspaceEnv: String?, useEnglish: Boolean): String {
+  private fun buildWorkspaceRuleFileSection(
+      workspaceRuleFileName: String?,
+      workspaceRuleFileContent: String,
+      useEnglish: Boolean
+  ): String {
+      if (workspaceRuleFileName.isNullOrBlank() || workspaceRuleFileContent.isBlank()) {
+          return ""
+      }
+
+      return if (useEnglish) {
+          """
+          WORKSPACE ROOT RULE FILE:
+          - The workspace root contains `${workspaceRuleFileName}`. Treat the following content as project-specific workspace instructions.
+          <workspace_rule_file name="${workspaceRuleFileName}">
+          $workspaceRuleFileContent
+          </workspace_rule_file>
+          """.trimIndent()
+      } else {
+          """
+          工作区根目录规则文件：
+          - 工作区根目录存在 `${workspaceRuleFileName}`，请将以下内容视为当前项目的工作区专属指令。
+          <workspace_rule_file name="${workspaceRuleFileName}">
+          $workspaceRuleFileContent
+          </workspace_rule_file>
+          """.trimIndent()
+      }
+  }
+
+  private fun getWorkspaceGuidelines(
+      workspacePath: String?,
+      workspaceEnv: String?,
+      useEnglish: Boolean,
+      workspaceRuleFileName: String? = null,
+      workspaceRuleFileContent: String = ""
+  ): String {
       val envLabel = workspaceEnv?.trim().orEmpty().ifBlank { "android" }
       val shouldShowEnv = envLabel.isNotBlank()
       return if (workspacePath != null) {
-          if (useEnglish) {
+          val baseGuidelines =
+              if (useEnglish) {
               """
               WEB WORKSPACE GUIDELINES:
               - Your working directory, `$workspacePath`${if (shouldShowEnv) " (environment=$envLabel)" else ""}, is automatically set up as a web server root.
@@ -662,6 +712,16 @@ AVAILABLE_TOOLS_SECTION""".trimIndent()
               - 若工作区位于已挂载路径中，直接在 Linux 终端环境中执行工作区文件；无需先复制再执行。
               - **代码修改最佳实践**：修改任何文件之前，建议组合使用 `grep_code` 与 `grep_context` 定位并理解相关代码及其上下文，避免在未理解项目结构时盲改。
               """.trimIndent()
+          }
+          val workspaceRuleFileSection = buildWorkspaceRuleFileSection(
+              workspaceRuleFileName = workspaceRuleFileName,
+              workspaceRuleFileContent = workspaceRuleFileContent,
+              useEnglish = useEnglish
+          )
+          if (workspaceRuleFileSection.isBlank()) {
+              baseGuidelines
+          } else {
+              "$baseGuidelines\n\n$workspaceRuleFileSection"
           }
       } else {
           if (useEnglish) {
@@ -692,7 +752,8 @@ AVAILABLE_TOOLS_SECTION""".trimIndent()
    * @param chatModelHasDirectImage Whether the chat model has direct image capability
    * @return The complete system prompt with custom prompts and package information
    */
-  fun getSystemPromptWithCustomPrompts(
+  suspend fun getSystemPromptWithCustomPrompts(
+          context: Context,
           packageManager: PackageManager,
           workspacePath: String?,
           workspaceEnv: String? = null,
@@ -759,6 +820,7 @@ AVAILABLE_TOOLS_SECTION""".trimIndent()
 
     val basePrompt =
         beforeContext.systemPrompt ?: getSystemPrompt(
+            context = context,
             packageManager = packageManager,
             workspacePath = workspacePath,
             workspaceEnv = workspaceEnv,
@@ -812,9 +874,10 @@ AVAILABLE_TOOLS_SECTION""".trimIndent()
     return afterContext.systemPrompt ?: afterComposePrompt
   }
 
-  /** Original method for backward compatibility */
-  fun getSystemPrompt(packageManager: PackageManager): String {
+  /** Convenience overload for default prompt generation. */
+  suspend fun getSystemPrompt(context: Context, packageManager: PackageManager): String {
     return getSystemPrompt(
+        context = context,
         packageManager = packageManager,
         workspacePath = null,
         workspaceEnv = null,
