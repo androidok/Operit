@@ -351,76 +351,115 @@ const nanobananaDraw = (function () {
         console.log(`步骤2/2: 等待任务完成（轮询中，每${pollIntervalMs / 1000}秒查询一次，最长等待${Math.ceil(maxWaitTimeMs / 60000)}分钟）...`);
         return taskId;
     }
-    async function pollForResult(taskId, options) {
-        const apiKey = getApiKey();
-        const startTime = Date.now();
-        let attempts = 0;
-        const pollIntervalMs = normalizePositiveInt(options?.poll_interval_ms, POLL_INTERVAL);
-        const maxWaitTimeMs = normalizePositiveInt(options?.max_wait_time_ms, MAX_WAIT_TIME);
-        // 构建结果查询请求
-        const requestBody = JSON.stringify({ id: taskId });
-        const headers = {
-            "accept": "application/json",
-            "content-type": "application/json",
-            "Authorization": `Bearer ${apiKey}`
-        };
-        while (Date.now() - startTime < maxWaitTimeMs) {
-            attempts++;
-            console.log(`第${attempts}次查询任务状态...`);
-            // 查询结果
-            const request = client
-                .newRequest()
-                .url(RESULT_ENDPOINT)
-                .method("POST")
-                .headers(headers)
-                .body(requestBody, "json");
-            const response = await request.build().execute();
-            if (!response.isSuccessful()) {
-                throw new Error(`查询结果失败: ${response.statusCode} - ${response.content}`);
-            }
-            let parsed;
-            try {
-                parsed = JSON.parse(response.content);
-            }
-            catch (e) {
-                throw new Error(`解析结果响应失败: ${getErrorMessage(e)}`);
-            }
-            if (!isRecord(parsed)) {
-                console.warn(`查询响应异常: ${JSON.stringify(parsed)}`);
-                await new Promise(resolve => setTimeout(resolve, pollIntervalMs));
-                continue;
-            }
-            if (!isApiSuccessResponse(parsed)) {
-                throw new Error(`查询结果失败: ${extractMessage(parsed, response.content)}`);
-            }
-            const data = extractTaskPayload(parsed);
-            if (!data) {
-                console.warn(`查询响应异常: ${JSON.stringify(parsed)}`);
-                await new Promise(resolve => setTimeout(resolve, pollIntervalMs));
-                continue;
-            }
-            const progress = normalizeProgress(data["progress"]);
-            const status = normalizeStatus(data["status"]);
-            const imageUrl = extractImageUrlFromPayload(data);
-            console.log(`当前进度: ${progress}% | 状态: ${status || "unknown"}`);
-            if (isSuccessStatus(status) || (progress >= 100 && imageUrl.length > 0)) {
-                console.log("✅ 任务完成!");
-                if (imageUrl.length === 0) {
-                    throw new Error("任务完成但响应中未找到图片URL: " + JSON.stringify(data));
+    async function pollForResult(taskId, options = {}) {
+            const pollIntervalMs = options.poll_interval_ms || 5000;
+            const maxWaitTimeMs = options.max_wait_time_ms || 600000;
+            const startTime = Date.now();
+            let attempt = 0;
+
+            const doSleep = (ms) => {
+                if (typeof sleep === 'function') { 
+                    sleep(ms); 
+                    return Promise.resolve(); 
                 }
-                return imageUrl;
+                try { 
+                    if (typeof java !== 'undefined' && java.lang && java.lang.Thread) { 
+                        java.lang.Thread.sleep(ms); 
+                        return Promise.resolve(); 
+                    } 
+                } catch(e) {}
+                
+                return new Promise(resolve => {
+                    const start = Date.now();
+                    while (Date.now() - start < ms) {
+                    }
+                    resolve();
+                });
+            };
+
+            while (Date.now() - startTime < maxWaitTimeMs) {
+                attempt++;
+                console.log(`第${attempt}次查询任务状态...`);
+
+                try {
+                    const request = client.newRequest()
+                        .url(RESULT_ENDPOINT)
+                        .method("POST")
+                        .header("Authorization", `Bearer ${getEnv("NANOBANANA_API_KEY")}`) 
+                        .header("Content-Type", "application/json")
+                        .body(JSON.stringify({ id: taskId }));
+
+                    const response = await request.build().execute(); 
+                    
+                    if (!response.isSuccessful()) { 
+                        console.warn(`⚠️ 查询请求未成功 (HTTP ${response.statusCode}): ${response.content}，将重试...`);
+                        await doSleep(pollIntervalMs);
+                        continue;
+                    }
+
+                    let parsed;
+                    try {
+                        parsed = JSON.parse(response.content); 
+                    } catch (e) {
+                        console.warn(`⚠️ 解析结果响应失败，将重试`);
+                        await doSleep(pollIntervalMs);
+                        continue;
+                    }
+
+                    if (!isRecord(parsed)) { 
+                        console.warn(`查询响应异常: ${JSON.stringify(parsed)}`); 
+                        await doSleep(pollIntervalMs); 
+                        continue; 
+                    }
+
+                    if (parsed["code"] === -22 || parsed["code"] === "-22") {
+                        console.log(`任务排队/处理中... (等待服务器生成)`);
+                        await doSleep(pollIntervalMs);
+                        continue;
+                    }
+
+                    if (!isApiSuccessResponse(parsed)) { 
+                        console.warn(`⚠️ API 返回异常状态，将重试: ${JSON.stringify(parsed)}`);
+                        await doSleep(pollIntervalMs);
+                        continue;
+                    }
+
+                    const data = extractTaskPayload(parsed); 
+                    if (!data) { 
+                        console.warn(`查询响应异常 (无有效数据): ${JSON.stringify(parsed)}`); 
+                        await doSleep(pollIntervalMs); 
+                        continue; 
+                    }
+
+                    const progress = normalizeProgress(data["progress"]); 
+                    const status = normalizeStatus(data["status"]); 
+                    const imageUrl = extractImageUrlFromPayload(data); 
+
+                    console.log(`当前进度: ${progress}% | 状态: ${status || "unknown"}`); 
+
+                    if (isSuccessStatus(status) || (progress >= 100 && imageUrl.length > 0)) { 
+                        console.log("✅ 任务完成!"); 
+                        if (imageUrl.length === 0) { 
+                            throw new Error("任务完成但响应中未找到图片URL: " + JSON.stringify(data)); 
+                        }
+                        return imageUrl; 
+                    }
+                    else if (isFailureStatus(status)) { 
+                        throw new Error(`任务执行失败: ${JSON.stringify(data)}`); 
+                    }
+                    else if ((status === "running" || status === "processing") && progress > 0) { 
+                        console.log(`生成中... 进度: ${progress}%`); 
+                    }
+
+                } catch (error) {
+                    console.log(`⚠️ 第${attempt}次查询发生不可预知的异常: ${error.message}，程序将自动进行下一次尝试...`);
+                }
+
+                await doSleep(pollIntervalMs); 
             }
-            else if (isFailureStatus(status)) {
-                throw new Error(`任务执行失败: ${extractMessage(data, JSON.stringify(data))}`);
-            }
-            else if ((status === "running" || status === "processing") && progress > 0) {
-                console.log(`生成中... 进度: ${progress}%`);
-            }
-            // 等待后再次查询
-            await new Promise(resolve => setTimeout(resolve, pollIntervalMs));
+
+            throw new Error(`任务超时: 等待超过${Math.ceil(maxWaitTimeMs / 60000)}分钟仍未完成`); 
         }
-        throw new Error(`任务超时: 等待超过${Math.ceil(maxWaitTimeMs / 60000)}分钟仍未完成`);
-    }
     function guessExtensionFromUrl(url) {
         const match = url.match(/\.(png|jpg|jpeg|webp|gif)(?:\?|#|$)/i);
         if (match && match[1]) {
